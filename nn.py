@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import os
 import pandas as pd
+import pickle
 import tensorflow as tf
 import time
 
@@ -12,7 +13,7 @@ def shuffleParallel(L):
         np.random.shuffle(l)
 
 class Input:
-    def __init__(self, fileName, shuffle):
+    def __init__(self, fileName, shuffle, normalizeFrom=None):
         data = pd.read_csv(fileName)
         ordinal = data[["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]]
         ordinal = ordinal.fillna(0)
@@ -35,8 +36,14 @@ class Input:
         if shuffle:
             shuffleParallel([self.npOrdinal, self.npCategoricalOneHot, self.npCategoricalEmbedding, self.npOutputs, self.npOutputsPresent])
 
+        if normalizeFrom is not None:
+            inputNormFrom = self if fileName == normalizeFrom else Input(normalizeFrom, shuffle=False)
+            means = inputNormFrom.npOrdinal.mean(axis=0)
+            std = inputNormFrom.npOrdinal.std(axis=0)
+            self.npOrdinal = (self.npOrdinal - means) / std
+
 class Settings:
-    def __init__(self, runId, resumeRun=None, firstLayerSize=100, secondLayerSize=50, batchSize=100, trainingTime=60*60, dropout=1.0, learningRate=1e-4, trainingPercent=0.8):
+    def __init__(self, runId, resumeRun=None, firstLayerSize=100, secondLayerSize=50, batchSize=100, trainingTime=60*60, dropout=1.0, learningRate=1e-4, trainingPercent=0.8, normalizeInput=False):
         self.runId = runId
         self.resumeRun = resumeRun
         self.firstLayerSize = firstLayerSize
@@ -46,6 +53,7 @@ class Settings:
         self.dropout = dropout
         self.learningRate = learningRate
         self.trainingPercent = trainingPercent
+        self.normalizeInput = normalizeInput
 
     def compatible(self, s):
         if self.firstLayerSize != s.firstLayerSize:
@@ -107,7 +115,7 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0):
     return feed_dict
 
 def predict(settings):
-    testInput = Input('testData.csv', shuffle=False)
+    testInput = Input('testData.csv', shuffle=False, normalizeFrom='training.csv' if settings.normalizeInput else None)
     categoricalFeatureEmbedSizes = zip([x + 1 for x in testInput.npCategoricalEmbedding.max(axis=0)], [10] * testInput.npCategoricalEmbedding.shape[1])
     graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], categoricalFeatureEmbedSizes)
 
@@ -119,7 +127,7 @@ def predict(settings):
     np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
 def nn(settings):
-    trainInput = Input('training.csv', shuffle=True)
+    trainInput = Input('training.csv', shuffle=True, normalizeFrom='training.csv' if settings.normalizeInput else None)
     trainValidationBoundary = int(trainInput.npOutputs.shape[0] * settings.trainingPercent)
     categoricalFeatureEmbedSizes = zip([x + 1 for x in trainInput.npCategoricalEmbedding.max(axis=0)], [10] * trainInput.npCategoricalEmbedding.shape[1])
     graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], categoricalFeatureEmbedSizes)
@@ -157,19 +165,49 @@ def nn(settings):
             saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
         step += 1
 
+def getSettingsPath(runId):
+    return os.path.join('tfmodels', 'run{}.settings'.format(runId))
+
 def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     parser = argparse.ArgumentParser(description='ML fun')
-    parser.add_argument('--runid', type=int, help='id of the run')
+    parser.add_argument('--runId', type=int, help='id of the run')
     parser.add_argument('--resumeRun', default=None, type=int, help='id of the run')
     parser.add_argument('--train', action='store_true', default=False, help='')
     parser.add_argument('--predict', action='store_true', default=False, help='')
+    parser.add_argument('--firstLayerSize', type=int, default=2000, help='firstLayerSize')
+    parser.add_argument('--secondLayerSize', type=int, default=1000, help='secondLayerSize')
+    parser.add_argument('--batchSize', type=int, default=1000, help='batchSize')
+    parser.add_argument('--trainingTime', type=int, default=60*60*5, help='trainingTime')
+    parser.add_argument('--dropout', type=float, default=1.0, help='dropout')
+    parser.add_argument('--learningRate', type=float, default=1e-3, help='learningRate')
+    parser.add_argument('--normalizeInput', action='store_true', default=False, help='')
     args = parser.parse_args()
 
-    settings = Settings(args.runid, args.resumeRun, firstLayerSize=2000, secondLayerSize=1000, batchSize=1000, trainingTime=60*60*5, dropout=1.0, learningRate=1e-3)
     if args.train:
+        settings = Settings(args.runId, args.resumeRun, firstLayerSize=args.firstLayerSize, secondLayerSize=args.secondLayerSize, batchSize=args.batchSize, trainingTime=args.trainingTime, dropout=args.dropout, learningRate=args.learningRate, normalizeInput = args.normalizeInput)
+        if os.path.isfile(getSettingsPath(args.runId)):
+            logging.info('Run already exists! Exiting')
+            return
+        if args.resumeRun is not None:
+            if not os.path.isfile(getSettingsPath(args.resumeRun)):
+                logging.info("resumeRun doesn't exist. Exiting")
+                return
+            with open(getSettingsPath(args.resumeRun), 'rb') as f:
+                prevSettings = pickle.load(f)
+            if not settings.compatible(prevSettings):
+                logging.info("Settings aren't compatible with previous settings. Exiting")
+                return
+
+        with open(getSettingsPath(args.runId), 'wb') as f:
+            pickle.dump(settings, f)
         nn(settings)
     elif args.predict:
+        if not os.path.isfile(getSettingsPath(args.runId)):
+            logging.info("Run doesn't exist. Exiting")
+            return
+        with open(getSettingsPath(args.runId), 'rb') as f:
+            settings = pickle.load(f)
         predict(settings)
     else:
         logging.info('doing nothing')
