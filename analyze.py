@@ -7,8 +7,9 @@ test = pd.read_csv('testData.csv')
 
 cols = train.columns
 
-printTopN = False
+printTopN = True
 printMissingProb = False
+printTimes = False
 
 if printTopN:
     for col in cols:
@@ -22,8 +23,8 @@ if printTopN:
             testProb = testVC[a] if a in testVC else 0
             if trainProb < .01:
                 break
-            print('{}: {} {}'.format(a, trainProb, testProb))
-        print()
+            #print('{}: {} {}'.format(a, trainProb, testProb))
+        #print()
 
 if printMissingProb:
     for col in cols:
@@ -44,25 +45,26 @@ def timeMap(data):
 trainTimes = timeMap(train)
 testTimes = timeMap(test)
 
-x = []
-y = []
-freq = {}
-for (k, v) in trainTimes.items():
-    #print(k, len(v), len(testTimes[k]) if k in testTimes else 0)
-    x.append(len(v))
-    y.append(len(testTimes[k]) if k in testTimes else 0)
-    nk = (x[-1], y[-1])
-    if nk not in freq:
-        freq[nk] = 1
-    else:
-        freq[nk] += 1
+if printTimes:
+    x = []
+    y = []
+    freq = {}
+    for (k, v) in trainTimes.items():
+        #print(k, len(v), len(testTimes[k]) if k in testTimes else 0)
+        x.append(len(v))
+        y.append(len(testTimes[k]) if k in testTimes else 0)
+        nk = (x[-1], y[-1])
+        if nk not in freq:
+            freq[nk] = 1
+        else:
+            freq[nk] += 1
 
-l = [(k, v) for (k, v) in freq.items()]
-l.sort(key=lambda a: a[1], reverse=True)
-accum = 0
-for (k, v) in l:
-    accum += v / len(x)
-    print(k, v / len(x), accum)
+    l = [(k, v) for (k, v) in freq.items()]
+    l.sort(key=lambda a: a[1], reverse=True)
+    accum = 0
+    for (k, v) in l:
+        accum += v / len(x)
+        print(k, v / len(x), accum)
 
 #matplotlib.pyplot.hist2d(x, y, bins=[15, 10], range=[[0, 15], [0, 10]])
 #matplotlib.pyplot.show()
