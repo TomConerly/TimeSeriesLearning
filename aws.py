@@ -133,7 +133,7 @@ class RealAWSClient:
         types = [('c4.xlarge', 4), ('c4.2xlarge', 8), ('c4.4xlarge', 16), ('c4.8xlarge', 32), ('c3.xlarge', 4), ('c3.2xlarge', 8), ('c3.4xlarge', 16), ('c3.8xlarge', 32)]
         typesDict = [{'InstanceType': name, 'WeightedCapacity': cap} for (name, cap) in types]
         nets = [net1, net2, net3]
-        with open('/home/ec2-user/source/init_server', 'r') as fd:
+        with open('/home/ec2-user/source/init_worker', 'r') as fd:
             userData = fd.read()
         launchSpec = {
                         'ImageId': 'ami-b34886d3',

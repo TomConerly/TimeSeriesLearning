@@ -158,7 +158,7 @@ class Command:
                        </form>'''
             cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form>'
 
-            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings, w.results) for (workId, w) in self.workPieces.items()])
+            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings.__dict__, w.results) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
