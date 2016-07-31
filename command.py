@@ -67,9 +67,11 @@ class WorkPieceState(enum.Enum):
     finished = 3
 
 class WorkPiece:
-    def __init__(self, state, time=0.0):
+    def __init__(self, state, time=0.0, settings={}, results={}):
         self.state = state
         self.time = time
+        self.settings = settings
+        self.results = results
 
 class CommandServer(http.server.BaseHTTPRequestHandler):
     def __init__(self, commander, *args):
@@ -152,7 +154,9 @@ class Command:
                        </form>'''
             cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form><br>'
 
-            return (200, '{}<br>{}<br>{}<br>{}'.format(workSummary, serverSummary, start, cancel))
+            '<br>'.join(['{}: {} => {}'.format(workId, w.settings, w.results) for (workId, w) in self.workPieces.items()])
+
+            return (200, '{}<br>{}<br>{}{}'.format(workSummary, serverSummary, start, cancel))
         elif path == '/log':
             with open(self.awsClient.getLogFile(), 'r') as fd:
                 return (200, fd.read().replace('\n', '\n<br>'))
@@ -259,13 +263,16 @@ class Command:
             if now - lastWorkScan > 600:
                runs = self.awsClient.listObjects(aws.S3BUCKET, 'run')
                for run in runs:
-                   if run.endswith('result'):
-                       workId = int(run[3:-7])
-                       self.workPieces[workId] = WorkPiece(WorkPieceState.finished)
-                   else:
+                   if run.endswith('settings'):
                        workId = int(run[3:-8])
                        if workId not in self.workPieces:
-                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned)
+                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, run).read()))
+                for run in runs:
+                   if run.endswith('result'):
+                       workId = int(run[3:-7])
+                       self.workPieces[workId].state = WorkPieceState.finished
+                       if len(self.workPieces[workId].result) == 0:
+                           self.workPieces[workId].result = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, run).read())
 
             httpServer.handle_request()
 

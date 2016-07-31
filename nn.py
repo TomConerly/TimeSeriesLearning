@@ -1,4 +1,5 @@
 import argparse
+import aws
 import logging
 import numpy as np
 import os
@@ -228,6 +229,7 @@ def main():
     parser.add_argument('--runId', type=int, help='id of the run')
     parser.add_argument('--resumeRun', default=None, type=int, help='id of the run')
     parser.add_argument('--train', action='store_true', default=False, help='')
+    parser.add_argument('--aws', action='store_true', default=False, help='Adds run to aws')
     parser.add_argument('--predict', action='store_true', default=False, help='')
     parser.add_argument('--hiddenLayerSizes', nargs='+', type=int)
     parser.add_argument('--batchSize', type=int, default=1000, help='batchSize')
@@ -275,6 +277,20 @@ def main():
         with open(getSettingsPath(args.runId), 'rb') as f:
             settings = pickle.load(f)
         predict(settings)
+    elif args.aws:
+        logging.info('adding training run to aws')
+        settings = Settings(args)
+        awsClient = aws.RealAWSClient()
+        if len(awsClient.listObjects(aws.S3BUCKET, 'run{}.settings'.format(settings.runId))) > 0:
+            logging.info('run already exists, exiting')
+            return
+        if settings.resumeRun is not None:
+            logging.info('Resuming from run: {}'.format(args.resumeRun))
+            prevSettings = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, 'run{}.settings'.format(settings.resumeRun)).read())
+            if not settings.compatible(prevSettings):
+                logging.info("Settings aren't compatible with previous settings. Exiting")
+                return
+        awsClient.putObject(aws.S3BUCKET, 'run{}.settings'.format(settings.runId), pickle.dumps(settings))
     else:
         logging.info('doing nothing')
 
