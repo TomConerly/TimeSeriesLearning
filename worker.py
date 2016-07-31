@@ -1,9 +1,12 @@
 import aws
 import command
+import http.server
 import logging
+import logging.handlers
 import nn
 import os
 import os.path
+import pickle
 import time
 
 def setupLogging(awsClient):
@@ -49,8 +52,6 @@ def logServerThread(awsClient):
     server.serve_forever()
     server.server_close()
 
-    while True:
-
 class HeartBeat:
     def __init__(self, cmdClient, workId):
         self.cmdClient = cmdClient
@@ -68,15 +69,15 @@ def main():
     setupLogging(awsClient)
     awsClient.downloadFile(aws.S3BUCKET, "testData.csv", "testData.csv")
 
-    if not os.path.exists('tfmodels')
+    if not os.path.exists('tfmodels'):
         os.mkdir('tfmodels')
-    if not os.path.exists('tflogs')
+    if not os.path.exists('tflogs'):
         os.mkdir('tflogs')
 
     t = threading.Thread(target=logServerThread, args=(awsClient,))
     t.start()
 
-    cmdClient = command.CommandClient(awsClient.getCommandInstance()['PrivateIpAddress'], 
+    cmdClient = command.CommandClient(awsClient.getCommandInstance()['PrivateIpAddress'],
                                       awsClient.getInstanceId())
 
     while True:

@@ -54,7 +54,7 @@ class RealAWSClient:
         except:
             logging.error('upload_file failed', exc_info=True)
             return False
-    
+
     def listObjects(self, bucket, prefix=None):
         try:
             if prefix is not None:
@@ -74,7 +74,7 @@ class RealAWSClient:
 
     def cancelSpotFleetRequest(self, spotFleetRequestId, terminateInstances):
         try:
-            self.ec2.cancel_spot_fleet_requests(SpotFleetRequestIds=[spotFleetRequestId], 
+            self.ec2.cancel_spot_fleet_requests(SpotFleetRequestIds=[spotFleetRequestId],
                                                 TerminateInstances=terminateInstances)
             return True
         except:
@@ -83,7 +83,7 @@ class RealAWSClient:
 
     def modifySpotFleetRequest(self, spotFleetRequestId, vcpus):
         try:
-            self.ec2.modify_spot_fleet_request(SpotFleetRequestIds=spotFleetRequestId, 
+            self.ec2.modify_spot_fleet_request(SpotFleetRequestIds=spotFleetRequestId,
                                               TargetCapacity=vcpus,
                                               ExcessCapacityTerminationPolicy='default')
             return True
@@ -206,7 +206,7 @@ class RealAWSClient:
             return False
         terminationTime = dateutil.parser.parse(r.content.decode())
         unixTerminationTime = terminationTime.timeStamp()
-        # Say we are getting terminated if termination time is in the future or 2 minutes in the past 
+        # Say we are getting terminated if termination time is in the future or 2 minutes in the past
         return unixTerminationTime + 120 > time.time()
 
     def cpuCount(self):

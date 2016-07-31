@@ -1,8 +1,29 @@
 import aws
+import enum
+import http.server
+import logging
+import logging.handlers
+import os
+import pickle
+import requests
+import time
+import urllib
+import urllib.parse
 
 GETWORK = 'GetWork'
 HEARTBEAT = 'HeartBeat'
 FINISHEDWORK = 'FinishedWork'
+
+def setupLogging(awsClient):
+    logFile = awsClient.getLogFile()
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    needRoll = os.path.exists(logFile)
+    handler = logging.handlers.RotatingFileHandler(logFile, backupCount=10)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    logger.addHandler(handler)
+    if needRoll:
+        handler.doRollover()
 
 class CommandClient:
     def __init__(self, ip, instanceId):
