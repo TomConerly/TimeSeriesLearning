@@ -58,9 +58,13 @@ class RealAWSClient:
     def listObjects(self, bucket, prefix=None):
         try:
             if prefix is not None:
-                return self.s3.list_objects_v2(Bucket=bucket, Prefix=prefix)['Contents']
+                d = self.s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
             else:
-                return self.s3.list_objects_v2(Bucket=bucket)['Contents']
+                d = self.s3.list_objects_v2(Bucket=bucket)
+            if 'Contents' in d:
+                return d['Contents']
+            else:
+                return []
         except:
             logging.error('list_objects_v2 failed', exc_info=True)
             return None
