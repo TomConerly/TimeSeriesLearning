@@ -71,7 +71,7 @@ class HeartBeat:
 def main():
     awsClient = aws.RealAWSClient()
     setupLogging(awsClient)
-    awsClient.downloadFile(aws.S3BUCKET, "testData.csv", "testData.csv")
+    awsClient.downloadFile(aws.S3BUCKET, "training.csv", "training.csv")
 
     if not os.path.exists('tfmodels'):
         os.mkdir('tfmodels')
