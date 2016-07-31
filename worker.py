@@ -66,7 +66,7 @@ class HeartBeat:
         t = time.time()
         if t - self.last > 60:
             self.last = t
-            self.cmdClient.sendHeartBeatRequest(workId)
+            self.cmdClient.sendHeartBeatRequest(self.workId)
 
 def main():
     awsClient = aws.RealAWSClient()
