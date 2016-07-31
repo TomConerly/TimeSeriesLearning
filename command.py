@@ -265,7 +265,7 @@ class Command:
                for run in runs:
                    key = run['Key']
                    if key.endswith('settings'):
-                       workId = int(key[3:-8])
+                       workId = int(key[3:-9])
                        if workId not in self.workPieces:
                            self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read()))
                for run in runs:
