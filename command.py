@@ -221,7 +221,7 @@ class Command:
             workId = int(request['WorkId'][0])
             logging.info('Got heart beat request workId: %s', workId)
             if workId in self.workPieces and self.workPieces[workId].state == WorkPieceState.assigned:
-                logging.info('Found work item, time since last heartbeat: %f', time.time() - w.time)
+                logging.info('Found work item, time since last heartbeat: %f', time.time() - self.workPieces[workId].time)
                 self.workPieces[workId].time = time.time()
         elif request['Type'][0] == FINISHEDWORK:
             workId = int(request['WorkId'][0])
