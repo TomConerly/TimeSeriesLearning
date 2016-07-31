@@ -129,8 +129,8 @@ class Command:
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.unassigned]),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.assigned]),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.finished]))
-            for w in self.workPieces:
-                logging.info('%d %s %f', w.workId, str(w.state), w.time)
+            for (workId, w) in self.workPieces.items():
+                logging.info('%d %s %f', workId, str(w.state), w.time)
 
             if self.curSpotFleetReq is None:
                 serverSummary = '''No running servers<br>'''
