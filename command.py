@@ -124,7 +124,8 @@ class Command:
             workSummary = '''Total work items: {}<br>
                              Unassigned work items: {}<br>
                              Assigned work items: {}<br>
-                             Finished work items: {}<br>'''
+                             Finished work items: {}<br>
+                             <a href="log">Log</a><br>'''
             workSummary = workSummary.format(len(self.workPieces),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.unassigned]),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.assigned]),
@@ -155,11 +156,11 @@ class Command:
                            Number of vCPUs: <input type="number" name="vcpus"><br>
                            <input type="submit" value="Start"><br>
                        </form>'''
-            cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form><br>'
+            cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form>'
 
-            '<br>'.join(['{}: {} => {}'.format(workId, w.settings, w.results) for (workId, w) in self.workPieces.items()])
+            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings, w.results) for (workId, w) in self.workPieces.items()])
 
-            return (200, '{}<br>{}<br>{}{}'.format(workSummary, serverSummary, start, cancel))
+            return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
             with open(self.awsClient.getLogFile(), 'r') as fd:
                 return (200, fd.read().replace('\n', '\n<br>'))
