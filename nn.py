@@ -23,6 +23,8 @@ class Input:
         embeddingColumns = []
         embeddingSizes = []
         for col in CATEGORICAL_COLS:
+            if getattr(settings, col) == 0:
+                continue
             if getattr(settings, col) == -1:
                 oneHotColumns.append(col)
             else:
@@ -57,7 +59,7 @@ class Input:
             std = inputNormFrom.npOrdinal.std(axis=0)
             self.npOrdinal = (self.npOrdinal - means) / std
 
-    def roll(shift):
+    def roll(self, shift):
         self.npOrdinal = np.roll(self.npOrdinal, shift, axis=0)
         self.npCategoricalOneHot = np.roll(self.npCategoricalOneHot, shift, axis=0)
         self.npCategoricalEmbedding = np.roll(self.npCategoricalEmbedding, shift, axis=0)
@@ -72,7 +74,6 @@ class Settings:
         self.batchSize = args.batchSize
         self.trainingTime = args.trainingTime
         self.dropout = args.dropout
-        self.learningRate = args.learningRate
         self.trainingPercent = args.trainingPercent
         self.normalizeInput = args.normalizeInput
         self.validationOffset = args.validationOffset
@@ -104,7 +105,7 @@ class Graph:
         self.categoricalOneHotInputs = tf.placeholder(tf.float32, [None, categoricalOneHotInputSize], name='categoricalOneHotInputs')
         self.outputs = tf.placeholder(tf.float32, [None, 3], name='outputs')
         self.outputsPresent = tf.placeholder(tf.float32, [None, 3], name='outputsPresent')
-        self.learningRate = tf.placeholder(tf.float32, [1], name='outputsPresent')
+        self.learningRate = tf.placeholder(tf.float32, [], name='outputsPresent')
 
         w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w11")
         w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w12")
@@ -154,7 +155,7 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate
     return feed_dict
 
 def predict(settings):
-    testInput = Input('testData.csv', shuffle=False, settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
+    testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
 
     sess = tf.Session()
@@ -165,7 +166,7 @@ def predict(settings):
     np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
 def nn(settings):
-    trainInput = Input('training.csv', shuffle=True, settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
+    trainInput = Input('training.csv', shuffle=True, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     trainingSize = int(trainInput.npOutputs.shape[0] * settings.trainingPercent)
     validationStart = int(trainInput.npOutputs.shape[0] * settings.validationOffset)
     trainInput.roll(trainingSize - validationStart)
@@ -186,11 +187,11 @@ def nn(settings):
     at = 0
     step = 0
     while time.time() - startTime < settings.trainingTime:
-        if at * settings.batchSize >= trainValidationBoundary:
+        if at * settings.batchSize >= trainingSize:
             logging.info('Starting over!')
             at = 0
         start = at * settings.batchSize
-        end = min(start + settings.batchSize, trainValidationBoundary)
+        end = min(start + settings.batchSize, trainingSize)
         at += 1
         if step >= settings.learningRatet:
             learningRate = settings.learningRate1
@@ -200,10 +201,10 @@ def nn(settings):
         sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
         if step % 100 == 0:
-            summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainValidationBoundary)), step)
+            summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainingSize)), step)
             summary_train_writer.flush()
         if step % 100 == 0:
-            madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainValidationBoundary))
+            madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
             summary_valid_writer.add_summary(summary, step)
             summary_valid_writer.flush()
             logging.info('mse: {:.6f}, mad: {:.6f}'.format(mseScore, madScore))
