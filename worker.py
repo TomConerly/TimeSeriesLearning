@@ -10,6 +10,9 @@ import pickle
 import threading
 import time
 
+class Settings:
+    pass
+
 def setupLogging(awsClient):
     logFile = awsClient.getLogFile()
     logger = logging.getLogger()

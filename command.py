@@ -3,7 +3,6 @@ import enum
 import http.server
 import logging
 import logging.handlers
-import nn
 import os
 import pickle
 import requests
@@ -14,6 +13,9 @@ import urllib.parse
 GETWORK = 'GetWork'
 HEARTBEAT = 'HeartBeat'
 FINISHEDWORK = 'FinishedWork'
+
+class Settings:
+    pass
 
 def setupLogging(awsClient):
     logFile = awsClient.getLogFile()
