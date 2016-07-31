@@ -87,7 +87,7 @@ class RealAWSClient:
 
     def modifySpotFleetRequest(self, spotFleetRequestId, vcpus):
         try:
-            self.ec2.modify_spot_fleet_request(SpotFleetRequestIds=spotFleetRequestId,
+            self.ec2.modify_spot_fleet_request(SpotFleetRequestId=spotFleetRequestId,
                                               TargetCapacity=vcpus,
                                               ExcessCapacityTerminationPolicy='default')
             return True
