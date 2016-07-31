@@ -115,7 +115,6 @@ class CommandServer(http.server.BaseHTTPRequestHandler):
 class Command:
     def __init__(self, awsClient):
         self.awsClient = awsClient
-        self.prefix = None
         self.workPieces = {}
         self.curSpotFleetReq = None
 
@@ -181,8 +180,6 @@ class Command:
             if self.curSpotFleetReq != None:
                 self.awsClient.cancelSpotFleetRequest(self.curSpotFleetReq, terminateInstances=True)
                 self.curSpotFleetReq = None
-            self.workPieces = []
-            self.prefix = None
             return (200, 'Canceled')
         else:
             return (404, 'Unknown path: {}'.format(path))
