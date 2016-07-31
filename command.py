@@ -108,7 +108,7 @@ class CommandServer(http.server.BaseHTTPRequestHandler):
 
     def log_error(self, format, *args):
         logging.error(format, *args)
-        
+
 class Command:
     def __init__(self, awsClient):
         self.awsClient = awsClient
@@ -122,7 +122,7 @@ class Command:
                              Unassigned work items: {}<br>
                              Assigned work items: {}<br>
                              Finished work items: {}<br>'''
-            workSummary = workSummary.format(len(self.workPieces), 
+            workSummary = workSummary.format(len(self.workPieces),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.unassigned]),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.assigned]),
                     len([s for s in self.workPieces.values() if s.state == WorkPieceState.finished]))
@@ -164,7 +164,7 @@ class Command:
             args = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
             price = float(args['price'][0])
             vcpus = int(args['vcpus'][0])
-            
+
             if self.curSpotFleetReq != None:
                 self.awsClient.modifySpotFleetRequest(self.curSpotFleetReq, vcpus)
                 return (400, "Can't start while another fleeet is in progress")
@@ -235,12 +235,12 @@ class Command:
 
     def run(self):
         logging.info('Command starting')
-                    
-        requests = [r for r in self.awsClient.getSpotFleetRequests() 
+
+        requests = [r for r in self.awsClient.getSpotFleetRequests()
                     if r['SpotFleetRequestState'] in ['submitted', 'active', 'cancelled_running', 'cancelled_terminating', 'modifying']]
         if len(requests) > 1:
             logging.error('Multiple outstanding fleet requests, cancel them all!')
-            self.awsClient.cancelSpotFleetRequest([req['SpotFleetRequestId'] for req in requests], 
+            self.awsClient.cancelSpotFleetRequest([req['SpotFleetRequestId'] for req in requests],
                                           terminateInstances=True)
             return
         elif len(requests) == 1:
@@ -268,7 +268,7 @@ class Command:
                        workId = int(key[3:-8])
                        if workId not in self.workPieces:
                            self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read()))
-                for run in runs:
+               for run in runs:
                    key = run['Key']
                    if key.endswith('result'):
                        workId = int(key[3:-7])
