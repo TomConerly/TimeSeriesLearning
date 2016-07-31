@@ -111,7 +111,7 @@ class Command:
     def __init__(self, awsClient):
         self.awsClient = awsClient
         self.prefix = None
-        self.workPieces = []
+        self.workPieces = {}
         self.curSpotFleetReq = None
 
     def httpGet(self, path):
@@ -121,9 +121,9 @@ class Command:
                              Assigned work items: {}<br>
                              Finished work items: {}<br>'''
             workSummary = workSummary.format(len(self.workPieces), 
-                    len([s for s in self.workPieces.itervalues() if s.state == WorkPieceState.unassigned]),
-                    len([s for s in self.workPieces.itervalues() if s.state == WorkPieceState.assigned]),
-                    len([s for s in self.workPieces.itervalues() if s.state == WorkPieceState.finished]))
+                    len([s for s in self.workPieces.values() if s.state == WorkPieceState.unassigned]),
+                    len([s for s in self.workPieces.values() if s.state == WorkPieceState.assigned]),
+                    len([s for s in self.workPieces.values() if s.state == WorkPieceState.finished]))
             for w in self.workPieces:
                 logging.info('%d %s %f', w.workId, str(w.state), w.time)
 
@@ -191,7 +191,7 @@ class Command:
         if request['Type'][0] == GETWORK:
             logging.info('Got get work request')
             outstanding = False
-            for workId, w in self.workPieces.iteritems():
+            for workId, w in self.workPieces.items():
                 if w.state == WorkPieceState.assigned:
                     outstanding = True
                 if w.state != WorkPieceState.unassigned:
@@ -250,7 +250,7 @@ class Command:
             now = time.time()
             if now - lastHeartBeatScan > 60:
                 lastHeartBeatScan = now
-                for (workId, w) in self.workPieces.iteritems():
+                for (workId, w) in self.workPieces.items():
                     if w.state == WorkPieceState.assigned and now - w.time > 600:
                         logging.info('No heart beat in %f seconds for workId %d marking unassigned',
                                      now - w.time, workId)
