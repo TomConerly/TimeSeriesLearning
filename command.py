@@ -277,8 +277,8 @@ class Command:
                    if key.endswith('result'):
                        workId = int(key[3:-7])
                        self.workPieces[workId].state = WorkPieceState.finished
-                       if len(self.workPieces[workId].result) == 0:
-                           self.workPieces[workId].result = pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read())
+                       if len(self.workPieces[workId].results) == 0:
+                           self.workPieces[workId].results = pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read())
 
             httpServer.handle_request()
 
