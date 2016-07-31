@@ -7,17 +7,30 @@ import pickle
 import tensorflow as tf
 import time
 
+CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8"]
+
 def shuffleParallel(L):
     for l in L:
         np.random.seed(0)
         np.random.shuffle(l)
 
 class Input:
-    def __init__(self, fileName, shuffle, normalizeFrom=None, ordinalNan=False):
+    def __init__(self, fileName, shuffle, settings, normalizeFrom=None, ordinalNan=False):
         data = pd.read_csv(fileName)
         ordinal = data[["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]]
-        categoricalOneHot = pd.get_dummies(data, columns=["STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8"], dummy_na=True)
-        categoricalEmbedding = data[["SUBJID"]]
+
+        oneHotColumns = []
+        embeddingColumns = []
+        embeddingSizes = []
+        for col in CATEGORICAL_COLS:
+            if getattr(settings, col) == -1:
+                oneHotColumns.append(col)
+            else:
+                embeddingColumns.append(col)
+                embeddingSizes.append(getattr(settings, col))
+
+        categoricalOneHot = pd.get_dummies(data, columns=oneHotColumns, dummy_na=True)
+        categoricalEmbedding = data[embeddingColumns]
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.astype('category').cat.codes)
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.replace(-1, x.max() + 1))
 
@@ -30,6 +43,7 @@ class Input:
             self.npOrdinal = np.hstack(self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32)))
         self.npCategoricalOneHot = np.array(ordinal).astype(np.float32)
         self.npCategoricalEmbedding = np.array(categoricalEmbedding).astype(np.int32)
+        self.categoricalFeatureEmbedSizes = zip([x + 1 for x in self.npCategoricalEmbedding.max(axis=0)], embeddingSizes)
         self.npOutputs = np.array(outputs).astype(np.float32)
         self.npOutputsPresent = np.ones(outputsPresent.shape) - np.array(outputsPresent).astype(np.float32)
         self.npOutputsPresent = self.npOutputsPresent / self.npOutputsPresent.sum(axis=1, keepdims=True)
@@ -38,7 +52,7 @@ class Input:
             shuffleParallel([self.npOrdinal, self.npCategoricalOneHot, self.npCategoricalEmbedding, self.npOutputs, self.npOutputsPresent])
 
         if normalizeFrom is not None:
-            inputNormFrom = self if fileName == normalizeFrom else Input(normalizeFrom, shuffle=False, ordinalNan=ordinalNan)
+            inputNormFrom = self if fileName == normalizeFrom else Input(normalizeFrom, shuffle=False, settings=settings, ordinalNan=ordinalNan)
             means = inputNormFrom.npOrdinal.mean(axis=0)
             std = inputNormFrom.npOrdinal.std(axis=0)
             self.npOrdinal = (self.npOrdinal - means) / std
@@ -51,27 +65,36 @@ class Input:
         self.npOutputsPresent = np.roll(self.npOutputsPresent, shift, axis=0)
 
 class Settings:
-    def __init__(self, runId, resumeRun, hiddenLayerSizes, batchSize=100, trainingTime=60*60, dropout=1.0, learningRate0=1e-4, learningRate1=1e-4, learningRatet=100000, trainingPercent=0.8, normalizeInput=False, validationOffset=0.8, ordinalNan=False):
-        self.runId = runId
-        self.resumeRun = resumeRun
-        self.hiddenLayerSizes = hiddenLayerSizes
-        self.batchSize = batchSize
-        self.trainingTime = trainingTime
-        self.dropout = dropout
-        self.learningRate = learningRate
-        self.trainingPercent = trainingPercent
-        self.normalizeInput = normalizeInput
-        self.validationOffset = validationOffset
-        self.ordinalNan = ordinalNan
-        self.learningRate0 = learningRate0
-        self.learningRate1 = learningRate1
-        self.learningRatet = learningRatet
+    def __init__(self, args):
+        self.runId = args.runId
+        self.resumeRun = args.resumeRun
+        self.hiddenLayerSizes = args.hiddenLayerSizes
+        self.batchSize = args.batchSize
+        self.trainingTime = args.trainingTime
+        self.dropout = args.dropout
+        self.learningRate = args.learningRate
+        self.trainingPercent = args.trainingPercent
+        self.normalizeInput = args.normalizeInput
+        self.validationOffset = args.validationOffset
+        self.ordinalNan = args.ordinalNan
+        self.learningRate0 = args.learningRate0
+        self.learningRate1 = args.learningRate1
+        self.learningRatet = args.learningRatet
+
+        for col in CATEGORICAL_COLS:
+            setattr(self, col, getattr(args, col))
 
     def compatible(self, s):
         if self.hiddenLayerSizes != s.hiddenLayerSizes:
+            logging.info('Hidden layer sizes incompatible')
             return False
         if self.ordinalNan != s.ordinalNan:
+            logging.info('Ordinal nan incompatible')
             return False
+        for col in CATEGORICAL_COLS:
+            if getattr(self, col) != getattr(s, col):
+                logging.info('Categorical column {} incompatible'.format(col))
+                return False
         return True
 
 class Graph:
@@ -131,9 +154,8 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate
     return feed_dict
 
 def predict(settings):
-    testInput = Input('testData.csv', shuffle=False, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
-    categoricalFeatureEmbedSizes = zip([x + 1 for x in testInput.npCategoricalEmbedding.max(axis=0)], [10] * testInput.npCategoricalEmbedding.shape[1])
-    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], categoricalFeatureEmbedSizes)
+    testInput = Input('testData.csv', shuffle=False, settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
+    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
 
     sess = tf.Session()
     saver = tf.train.Saver()
@@ -143,13 +165,12 @@ def predict(settings):
     np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
 def nn(settings):
-    trainInput = Input('training.csv', shuffle=True, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
+    trainInput = Input('training.csv', shuffle=True, settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     trainingSize = int(trainInput.npOutputs.shape[0] * settings.trainingPercent)
     validationStart = int(trainInput.npOutputs.shape[0] * settings.validationOffset)
     trainInput.roll(trainingSize - validationStart)
 
-    categoricalFeatureEmbedSizes = zip([x + 1 for x in trainInput.npCategoricalEmbedding.max(axis=0)], [10] * trainInput.npCategoricalEmbedding.shape[1])
-    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], categoricalFeatureEmbedSizes)
+    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
 
     saver = tf.train.Saver()
     sess = tf.Session()
@@ -210,10 +231,13 @@ def main():
     parser.add_argument('--trainingPercent', type=float, default=0.8, help='trainingPercent')
     parser.add_argument('--validationOffset', type=float, default=0.8, help='validationOffset')
     parser.add_argument('--ordinalNan', action='store_true', default=False, help='')
+    for col in CATEGORICAL_COLS:
+        parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
+
     args = parser.parse_args()
 
     if args.train:
-        settings = Settings(args.runId, args.resumeRun, args.hiddenLayerSizes, batchSize=args.batchSize, trainingTime=args.trainingTime, dropout=args.dropout, learningRate0=args.learningRate0, learningRate1=args.learningRate1, learningRatet=args.learningRatet, normalizeInput=args.normalizeInput, trainingPercent=args.trainingPercent, validationOffset=args.validationOffset, ordinalNan=args.ordinalNan)
+        settings = Settings(args)
         if os.path.isfile(getSettingsPath(args.runId)):
             logging.info('Run already exists! Exiting')
             return
