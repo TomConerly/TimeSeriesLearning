@@ -170,7 +170,7 @@ def predict(settings):
     logging.info('Saving prediction')
     np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
-def nn(settings):
+def nn(settings, callback=None):
     logging.info('Training')
     trainInput = Input('training.csv', shuffle=True, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     trainingSize = int(trainInput.npOutputs.shape[0] * settings.trainingPercent)
@@ -193,6 +193,8 @@ def nn(settings):
     at = 0
     step = 0
     while time.time() - startTime < settings.trainingTime:
+        if callback is not None:
+            callback()
         if at * settings.batchSize >= trainingSize:
             at = 0
         start = at * settings.batchSize
@@ -215,6 +217,7 @@ def nn(settings):
             logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
             saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
         step += 1
+    return (madScore, mseScore)
 
 def getSettingsPath(runId):
     return os.path.join('tfmodels', 'run{}.settings'.format(runId))
