@@ -45,7 +45,7 @@ class Input:
             self.npOrdinal = np.hstack(self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32)))
         self.npCategoricalOneHot = np.array(ordinal).astype(np.float32)
         self.npCategoricalEmbedding = np.array(categoricalEmbedding).astype(np.int32)
-        self.categoricalFeatureEmbedSizes = zip([x + 1 for x in self.npCategoricalEmbedding.max(axis=0)], embeddingSizes)
+        self.categoricalFeatureEmbedSizes = zip([x + 1 for x in self.npCategoricalEmbedding.max(axis=0)], embeddingSizes, embeddingColumns)
         self.npOutputs = np.array(outputs).astype(np.float32)
         self.npOutputsPresent = np.ones(outputsPresent.shape) - np.array(outputsPresent).astype(np.float32)
         self.npOutputsPresent = self.npOutputsPresent / self.npOutputsPresent.sum(axis=1, keepdims=True)
@@ -100,35 +100,35 @@ class Settings:
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
-        self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        self.keep_prob = tf.placeholder(tf.float32, name='dropoutRate')
         self.ordinalInputs = tf.placeholder(tf.float32, [None, ordinalInputSize], name='ordinalInputs')
         self.categoricalOneHotInputs = tf.placeholder(tf.float32, [None, categoricalOneHotInputSize], name='categoricalOneHotInputs')
         self.outputs = tf.placeholder(tf.float32, [None, 3], name='outputs')
         self.outputsPresent = tf.placeholder(tf.float32, [None, 3], name='outputsPresent')
-        self.learningRate = tf.placeholder(tf.float32, [], name='outputsPresent')
+        self.learningRate = tf.placeholder(tf.float32, [], name='learningRate')
 
-        w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w11")
-        w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w12")
+        w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1ordinal")
+        w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
         b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
         h1 = tf.matmul(self.ordinalInputs, w11) + tf.matmul(self.categoricalOneHotInputs, w12) + b1
         self.categoricalFeatureEmbedInputs = []
-        for numClasses, embedSize in categoricalFeatureEmbedSizes:
-            embedWeights = tf.Variable(tf.truncated_normal([numClasses, embedSize], stddev=0.1))
-            embedInput = tf.placeholder(tf.int32, shape=[None])
-            embedOutput = tf.nn.embedding_lookup(embedWeights, embedInput)
-            firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1))
+        for numClasses, embedSize, name in categoricalFeatureEmbedSizes:
+            embedWeights = tf.Variable(tf.truncated_normal([numClasses, embedSize], stddev=0.1), name="embedWeights{}".format(name))
+            embedInput = tf.placeholder(tf.int32, shape=[None], name="embedInput{}".format(name))
+            embedOutput = tf.nn.embedding_lookup(embedWeights, embedInput, name="embedOutput{}".format(name))
+            firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
             h1 = h1 + tf.matmul(embedOutput, firstLayerWeights)
             self.categoricalFeatureEmbedInputs.append(embedInput)
-        z1 = tf.nn.relu(h1)
-        z1drop = tf.nn.dropout(z1, self.keep_prob)
+        z1 = tf.nn.relu(h1, name="z1")
+        z1drop = tf.nn.dropout(z1, self.keep_prob, name="z1drop")
 
         zdrops = [z1drop]
         for i in range(1, len(settings.hiddenLayerSizes)):
-            w = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], stddev=0.1))
-            b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]))
+            w = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], stddev=0.1), name="w{}".format(i+1))
+            b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
             h = tf.matmul(zdrops[-1], w) + b
-            z = tf.nn.relu(h)
-            zdrop = tf.nn.dropout(z, self.keep_prob)
+            z = tf.nn.relu(h, name="z{}".format(i+1))
+            zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
         woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
