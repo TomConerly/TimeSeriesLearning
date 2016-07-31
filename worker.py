@@ -80,6 +80,7 @@ def main():
 
     cmdClient = command.CommandClient(awsClient.getCommandInstance()['PrivateIpAddress'],
                                       awsClient.getInstanceId())
+    myType = awsClient.getInstanceType()
 
     while True:
         workId = cmdClient.sendGetWorkRequest()
@@ -101,6 +102,13 @@ def main():
             awsClient.downloadFile(aws.S3BUCKET, name, name)
             name = 'tfmodels/run{}'.format(settings.resumeRun)
             awsClient.downloadFile(aws.S3BUCKET, name, name)
+        if myType in ['c3.2xlarge', 'c4.2xlarge']:
+            settings.trainingTime /= 2
+        elif myType in ['c3.4xlarge', 'c4.4xlarge']:
+            settings.trainingTime /= 4
+        elif myType in ['c3.8xlarge', 'c4.8xlarge']:
+            settings.trainingTime /= 8
+
         mad, mse = nn.nn(settings, lambda: h.maybeSendHeartBeat())
 
         logging.info('Uploading results')

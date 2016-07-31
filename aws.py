@@ -130,7 +130,7 @@ class RealAWSClient:
                                 "Groups": ["sg-fc6af29a"]
                             }
                         ],}
-        types = [('c4.xlarge', 4), ('c4.2xlarge', 8), ('c3.xlarge', 4), ('c3.2xlarge', 8)]
+        types = [('c4.xlarge', 4), ('c4.2xlarge', 8), ('c4.4xlarge', 16), ('c4.8xlarge', 32), ('c3.xlarge', 4), ('c3.2xlarge', 8), ('c3.4xlarge', 16), ('c3.8xlarge', 32)]
         typesDict = [{'InstanceType': name, 'WeightedCapacity': cap} for (name, cap) in types]
         nets = [net1, net2, net3]
         with open('/home/ec2-user/source/init_server', 'r') as fd:
@@ -179,6 +179,9 @@ class RealAWSClient:
 
     def getInstanceId(self):
         return requests.get('http://169.254.169.254/latest/meta-data/instance-id').content.decode()
+
+    def getInstanceType(self):
+        return requests.get('http://169.254.169.254/latest/meta-data/instance-type').content.decode()
 
     def getMyInstance(self):
         inst = self.ec2.describe_instances(InstanceIds=[self.getInstanceId()])
