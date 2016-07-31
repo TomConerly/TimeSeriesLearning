@@ -16,6 +16,7 @@ def shuffleParallel(L):
 
 class Input:
     def __init__(self, fileName, shuffle, settings, normalizeFrom=None, ordinalNan=False):
+        logging.info('Loading input {}'.format(fileName))
         data = pd.read_csv(fileName)
         ordinal = data[["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]]
 
@@ -100,6 +101,7 @@ class Settings:
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
+        logging.info('Building graph')
         self.keep_prob = tf.placeholder(tf.float32, name='dropoutRate')
         self.ordinalInputs = tf.placeholder(tf.float32, [None, ordinalInputSize], name='ordinalInputs')
         self.categoricalOneHotInputs = tf.placeholder(tf.float32, [None, categoricalOneHotInputSize], name='categoricalOneHotInputs')
@@ -155,17 +157,21 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate
     return feed_dict
 
 def predict(settings):
+    logging.info('Predicting')
     testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
 
     sess = tf.Session()
     saver = tf.train.Saver()
+    logging.info('Restoring model')
     saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
 
     testPredictions = sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput))
+    logging.info('Saving prediction')
     np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
 def nn(settings):
+    logging.info('Training')
     trainInput = Input('training.csv', shuffle=True, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     trainingSize = int(trainInput.npOutputs.shape[0] * settings.trainingPercent)
     validationStart = int(trainInput.npOutputs.shape[0] * settings.validationOffset)
@@ -188,7 +194,6 @@ def nn(settings):
     step = 0
     while time.time() - startTime < settings.trainingTime:
         if at * settings.batchSize >= trainingSize:
-            logging.info('Starting over!')
             at = 0
         start = at * settings.batchSize
         end = min(start + settings.batchSize, trainingSize)
@@ -207,7 +212,7 @@ def nn(settings):
             madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
             summary_valid_writer.add_summary(summary, step)
             summary_valid_writer.flush()
-            logging.info('mse: {:.6f}, mad: {:.6f}'.format(mseScore, madScore))
+            logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
             saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
         step += 1
 
@@ -238,11 +243,14 @@ def main():
     args = parser.parse_args()
 
     if args.train:
+        logging.info('training')
         settings = Settings(args)
+        logging.info('settings: {}', settings.__dict__)
         if os.path.isfile(getSettingsPath(args.runId)):
             logging.info('Run already exists! Exiting')
             return
         if args.resumeRun is not None:
+            logging.info('Resuming from run: {}'.format(args.resumeRun))
             if not os.path.isfile(getSettingsPath(args.resumeRun)):
                 logging.info("resumeRun doesn't exist. Exiting")
                 return
@@ -252,10 +260,12 @@ def main():
                 logging.info("Settings aren't compatible with previous settings. Exiting")
                 return
 
+        logging.info('writing settings')
         with open(getSettingsPath(args.runId), 'wb') as f:
             pickle.dump(settings, f)
         nn(settings)
     elif args.predict:
+        logging.info('Predicting from run: {}'.format(args.runId))
         if not os.path.isfile(getSettingsPath(args.runId)):
             logging.info("Run doesn't exist. Exiting")
             return
