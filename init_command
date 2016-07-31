@@ -1,6 +1,6 @@
 #!/bin/bash
 rm -rf /home/ec2-user/source
 su -c "git clone git@github.com:TomConerly/TimeSeriesLearning.git /home/ec2-user/source" - ec2-user
-pkill -9 -f "/root/anaconda3/bin/python /home/ec2-user/source/command.py"
+pkill -9 -f "/root/anaconda3/bin/python command.py"
 sleep 5
 (cd /home/ec2-user/source; nohup /root/anaconda3/bin/python command.py &)
