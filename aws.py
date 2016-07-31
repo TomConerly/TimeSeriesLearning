@@ -132,7 +132,7 @@ class RealAWSClient:
         with open('/home/ec2-user/source/init_server', 'r') as fd:
             userData = fd.read()
         launchSpec = {
-                        'ImageId': 'ami-ff0ccc9f',
+                        'ImageId': 'ami-b34886d3',
                         'KeyName': 'tomconerly',
                         'UserData': base64.b64encode(bytes(userData, 'utf-8')).decode('utf-8'),
                         'IamInstanceProfile': {'Arn': 'arn:aws:iam::328628590430:instance-profile/EC2'},
