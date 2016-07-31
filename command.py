@@ -169,9 +169,11 @@ class Command:
             vcpus = int(args['vcpus'][0])
 
             if self.curSpotFleetReq != None:
+                logging.info('Modifying existing spot fleet request')
                 self.awsClient.modifySpotFleetRequest(self.curSpotFleetReq, vcpus)
-                return (400, "Can't start while another fleeet is in progress")
+                return (200, "Modified existing request")
             else:
+                logging.info('Sending spot fleet request')
                 self.curSpotFleetReq = self.awsClient.sendSpotFleetRequest(price, vcpus)
                 if self.curSpotFleetReq == None:
                     return (400, 'Request failed')

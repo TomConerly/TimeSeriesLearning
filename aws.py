@@ -149,7 +149,7 @@ class RealAWSClient:
                                     'DeleteOnTermination': True,
                                     'VolumeType': 'gp2',
                                     'VolumeSize': 8,
-                                    'SnapshotId': 'snap-296981d4'
+                                    'SnapshotId': 'snap-e98a06b7'
                                   }
                                 }
                               ],
