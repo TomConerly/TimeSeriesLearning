@@ -267,14 +267,14 @@ class Command:
                    if key.endswith('settings'):
                        workId = int(key[3:-9])
                        if workId not in self.workPieces:
-                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read()))
+                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read()))
                for run in runs:
                    key = run['Key']
                    if key.endswith('result'):
                        workId = int(key[3:-7])
                        self.workPieces[workId].state = WorkPieceState.finished
                        if len(self.workPieces[workId].result) == 0:
-                           self.workPieces[workId].result = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read())
+                           self.workPieces[workId].result = pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read())
 
             httpServer.handle_request()
 
