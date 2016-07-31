@@ -263,16 +263,18 @@ class Command:
             if now - lastWorkScan > 600:
                runs = self.awsClient.listObjects(aws.S3BUCKET, 'run')
                for run in runs:
-                   if run.endswith('settings'):
-                       workId = int(run[3:-8])
+                   key = run['Key']
+                   if key.endswith('settings'):
+                       workId = int(key[3:-8])
                        if workId not in self.workPieces:
-                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, run).read()))
+                           self.workPieces[workId] = WorkPiece(WorkPieceState.unassigned, settings=pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read()))
                 for run in runs:
-                   if run.endswith('result'):
-                       workId = int(run[3:-7])
+                   key = run['Key']
+                   if key.endswith('result'):
+                       workId = int(key[3:-7])
                        self.workPieces[workId].state = WorkPieceState.finished
                        if len(self.workPieces[workId].result) == 0:
-                           self.workPieces[workId].result = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, run).read())
+                           self.workPieces[workId].result = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, key).read())
 
             httpServer.handle_request()
 
