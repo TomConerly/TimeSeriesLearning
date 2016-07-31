@@ -204,7 +204,7 @@ class Command:
                     outstanding = True
                 if w.state != WorkPieceState.unassigned:
                     continue
-                response['WorkId'] = w.workId
+                response['WorkId'] = workId
                 logging.info('Responding with workId: %s', response['WorkId'])
                 w.state = WorkPieceState.assigned
                 w.time = time.time()
