@@ -159,7 +159,7 @@ class Command:
                 if res == {}:
                     return 'Not finished'
                 return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f}'.format(res['bestMAD'], res['bestMSE'], res['mad'], res['mse'])
-            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings, formatResult(w.results)) for (workId, w) in self.workPieces.items()])
+            joblist = '<br>'.join(['{} => {}'.format(w.settings, formatResult(w.results)) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
