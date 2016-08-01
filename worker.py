@@ -23,8 +23,8 @@ class WorkerServer(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             with open(self.logFile, 'r') as fd:
                 self.wfile.write(bytes(fd.read().replace('\n', '\n<br>'), 'utf-8'))
-         except:
-             logging.error('Uncaught exception in get', exc_info=True)
+        except:
+            logging.error('Uncaught exception in get', exc_info=True)
 
     def log_message(self, format, *args):
         logging.info(format, *args)
