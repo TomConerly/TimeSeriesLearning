@@ -158,8 +158,8 @@ class Command:
             def formatResult(res):
                 if res == {}:
                     return 'Not finished'
-                return 'bestmad: {}, bestmse: {}, mad: {}, mse: {}'.format(w.results['bestMAD'], w.results['bestMSE'], w.results['mad'], w.results['mse'])
-            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings, formatResult(w.result)) for (workId, w) in self.workPieces.items()])
+                return 'bestmad: {}, bestmse: {}, mad: {}, mse: {}'.format(res['bestMAD'], res['bestMSE'], res['mad'], res['mse'])
+            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings, formatResult(w.results)) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
