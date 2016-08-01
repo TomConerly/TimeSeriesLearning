@@ -114,6 +114,7 @@ class Settings:
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
+        tf.reset_default_graph()
         logging.info('Building graph')
         self.keep_prob = tf.placeholder(tf.float32, name='dropoutRate')
         self.ordinalInputs = tf.placeholder(tf.float32, [None, ordinalInputSize], name='ordinalInputs')
