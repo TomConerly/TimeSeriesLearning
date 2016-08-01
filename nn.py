@@ -174,14 +174,14 @@ def predict(settings):
     testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
     graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
 
-    sess = tf.Session()
-    saver = tf.train.Saver()
-    logging.info('Restoring model')
-    saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
+    with tf.Session() as sess:
+        saver = tf.train.Saver()
+        logging.info('Restoring model')
+        saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
 
-    testPredictions = sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput))
-    logging.info('Saving prediction')
-    np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
+        testPredictions = sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput))
+        logging.info('Saving prediction')
+        np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
 def nn(settings, callback=None):
     logging.info('Training')
@@ -193,48 +193,48 @@ def nn(settings, callback=None):
     graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
 
     saver = tf.train.Saver()
-    sess = tf.Session()
-    sess.run(tf.initialize_all_variables())
-    summary_train_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runtrain{}'.format(settings.runId)), sess.graph)
-    summary_valid_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runvalid{}'.format(settings.runId)), sess.graph)
+    with tf.Session() as sess:
+        sess.run(tf.initialize_all_variables())
+        summary_train_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runtrain{}'.format(settings.runId)), sess.graph)
+        summary_valid_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runvalid{}'.format(settings.runId)), sess.graph)
 
-    if settings.resumeRun is not None:
-        logging.info('Resuming from run {}'.format(settings.resumeRun))
-        saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.resumeRun)))
+        if settings.resumeRun is not None:
+            logging.info('Resuming from run {}'.format(settings.resumeRun))
+            saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.resumeRun)))
 
-    startTime = time.time()
-    at = 0
-    step = 0
-    bestMSE = 1.0
-    bestMAD = 1.0
-    while time.time() - startTime < settings.trainingTime:
-        if callback is not None:
-            callback()
-        if at * settings.batchSize >= trainingSize:
-            at = 0
-        start = at * settings.batchSize
-        end = min(start + settings.batchSize, trainingSize)
-        at += 1
-        if step >= settings.learningRatet:
-            learningRate = settings.learningRate1
-        else:
-            alpha = step / settings.learningRatet
-            learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
-        sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
+        startTime = time.time()
+        at = 0
+        step = 0
+        bestMSE = 1.0
+        bestMAD = 1.0
+        while time.time() - startTime < settings.trainingTime:
+            if callback is not None:
+                callback()
+            if at * settings.batchSize >= trainingSize:
+                at = 0
+            start = at * settings.batchSize
+            end = min(start + settings.batchSize, trainingSize)
+            at += 1
+            if step >= settings.learningRatet:
+                learningRate = settings.learningRate1
+            else:
+                alpha = step / settings.learningRatet
+                learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
+            sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
-        if step % (100000 / settings.batchSize) == 0:
-            summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainingSize)), step)
-            summary_train_writer.flush()
+            if step % (100000 / settings.batchSize) == 0:
+                summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainingSize)), step)
+                summary_train_writer.flush()
 
-            madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
-            summary_valid_writer.add_summary(summary, step)
-            summary_valid_writer.flush()
-            logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
-            saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
-            bestMSE = min(bestMSE, mseScore)
-            bestMAD = min(bestMAD, madScore)
-        step += 1
-    return (madScore, mseScore, bestMAD, bestMSE)
+                madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
+                summary_valid_writer.add_summary(summary, step)
+                summary_valid_writer.flush()
+                logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
+                saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
+                bestMSE = min(bestMSE, mseScore)
+                bestMAD = min(bestMAD, madScore)
+            step += 1
+        return (madScore, mseScore, bestMAD, bestMSE)
 
 def getSettingsPath(runId):
     return os.path.join('tfmodels', 'run{}.settings'.format(runId))
