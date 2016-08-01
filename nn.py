@@ -258,6 +258,7 @@ def main():
     parser.add_argument('--trainingPercent', type=float, default=0.8, help='trainingPercent')
     parser.add_argument('--validationOffset', type=float, default=0.8, help='validationOffset')
     parser.add_argument('--ordinalNan', action='store_true', default=False, help='')
+    parser.add_argument('--override', action='store_true', default=False, help='')
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
@@ -297,7 +298,7 @@ def main():
         logging.info('adding training run to aws')
         settings = Settings(args)
         awsClient = aws.RealAWSClient()
-        if len(awsClient.listObjects(aws.S3BUCKET, 'run{}.settings'.format(settings.runId))) > 0:
+        if not args.override and len(awsClient.listObjects(aws.S3BUCKET, 'run{}.settings'.format(settings.runId))) > 0:
             logging.info('run already exists, exiting')
             return
         if settings.resumeRun is not None:
