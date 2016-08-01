@@ -36,7 +36,7 @@ class Input:
         if oneHotColumns == []:
             categoricalOneHot = np.zeros((data.shape[0], 0))
         else:
-            categoricalOneHot = pd.get_dummies(data, columns=oneHotColumns, dummy_na=True)
+            categoricalOneHot = pd.get_dummies(data[oneHotColumns].astype('object'), dummy_na=True)
         categoricalEmbedding = data[embeddingColumns]
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.astype('category').cat.codes)
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.replace(-1, x.max() + 1))
@@ -139,7 +139,7 @@ class Graph:
             embedInput = tf.placeholder(tf.int32, shape=[None], name="embedInput{}".format(name))
             embedOutput = tf.nn.embedding_lookup(embedWeights, embedInput, name="embedOutput{}".format(name))
             firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
-            h1 = h1 + tf.matmul(embedOutput, firstLayerWeights)
+            h1 += tf.matmul(embedOutput, firstLayerWeights)
             self.categoricalFeatureEmbedInputs.append(embedInput)
         z1 = tf.nn.relu(h1, name="z1")
         z1drop = tf.nn.dropout(z1, self.keep_prob, name="z1drop")
