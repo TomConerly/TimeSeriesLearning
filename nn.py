@@ -164,6 +164,7 @@ class Graph:
         tf.scalar_summary('mse', self.mse)
         tf.scalar_summary('mad', self.mad)
         self.summary_op = tf.merge_all_summaries()
+        logging.info('Done building graph')
 
 def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate=0.0):
     feed_dict = {graph.ordinalInputs: input.npOrdinal[start:end],
@@ -200,6 +201,7 @@ def nn(settings, callback=None):
     graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
 
     saver = tf.train.Saver()
+    logging.info('Starting training')
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
         summary_train_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runtrain{}'.format(settings.runId)), sess.graph)
