@@ -44,7 +44,7 @@ class Input:
 
         self.npOrdinal = np.array(ordinal.fillna(0)).astype(np.float32)
         if ordinalNan:
-            self.npOrdinal = np.hstack(self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32)))
+            self.npOrdinal = np.hstack([self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32))])
         self.npCategoricalOneHot = np.array(ordinal).astype(np.float32)
         self.npCategoricalEmbedding = np.array(categoricalEmbedding).astype(np.int32)
         self.categoricalFeatureEmbedSizes = zip([x + 1 for x in self.npCategoricalEmbedding.max(axis=0)], embeddingSizes, embeddingColumns)
