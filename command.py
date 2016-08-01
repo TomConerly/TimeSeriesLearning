@@ -81,22 +81,28 @@ class CommandServer(http.server.BaseHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self):
-        (code, content) = self.commander.httpGet(self.path)
-        self.send_response(code)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(bytes(content, 'utf-8'))
+        try:
+            (code, content) = self.commander.httpGet(self.path)
+            self.send_response(code)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(bytes(content, 'utf-8'))
+        except:
+            logging.error('Uncaught exception in get', exc_info=True)
 
     def do_POST(self):
-        logging.info('POST request path: %s', self.path)
-        length = int(self.headers['content-length'])
-        request = urllib.parse.parse_qs(self.rfile.read(length).decode('utf-8'))
-        logging.info('POST request content: %s', json.dumps(request))
-        (code, response) = self.commander.httpPost(self.path, request)
-        self.send_response(code)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(bytes(json.dumps(response), 'utf-8'))
+        try:
+            logging.info('POST request path: %s', self.path)
+            length = int(self.headers['content-length'])
+            request = urllib.parse.parse_qs(self.rfile.read(length).decode('utf-8'))
+            logging.info('POST request content: %s', json.dumps(request))
+            (code, response) = self.commander.httpPost(self.path, request)
+            self.send_response(code)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(bytes(json.dumps(response), 'utf-8'))
+        except:
+            logging.error('Uncaught exception in post', exc_info=True)
 
     def log_message(self, format, *args):
         logging.info(format, *args)

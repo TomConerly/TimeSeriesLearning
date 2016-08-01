@@ -17,11 +17,14 @@ class WorkerServer(http.server.BaseHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        with open(self.logFile, 'r') as fd:
-            self.wfile.write(bytes(fd.read().replace('\n', '\n<br>'), 'utf-8'))
+        try:
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            with open(self.logFile, 'r') as fd:
+                self.wfile.write(bytes(fd.read().replace('\n', '\n<br>'), 'utf-8'))
+         except:
+             logging.error('Uncaught exception in get', exc_info=True)
 
     def log_message(self, format, *args):
         logging.info(format, *args)
