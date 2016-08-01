@@ -7,3 +7,4 @@ training.csv
 pred.csv
 *.swp
 validation_baseline.py
+create.sh

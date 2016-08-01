@@ -222,10 +222,10 @@ def nn(settings, callback=None):
             learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
         sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
-        if step % 100 == 0:
+        if step % (100000 / settings.batchSize) == 0:
             summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainingSize)), step)
             summary_train_writer.flush()
-        if step % 100 == 0:
+
             madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
             summary_valid_writer.add_summary(summary, step)
             summary_valid_writer.flush()
