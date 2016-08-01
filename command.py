@@ -4,6 +4,7 @@ import http.server
 import json
 import logging
 import logging.handlers
+from nn import Settings
 import os
 import pickle
 import requests
@@ -14,9 +15,6 @@ import urllib.parse
 GETWORK = 'GetWork'
 HEARTBEAT = 'HeartBeat'
 FINISHEDWORK = 'FinishedWork'
-
-class Settings:
-    pass
 
 def setupLogging(awsClient):
     logFile = awsClient.getLogFile()
@@ -83,29 +81,22 @@ class CommandServer(http.server.BaseHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self):
-        try:
-            logging.info('GET request %s', self.path)
-            (code, content) = self.commander.httpGet(self.path)
-            self.send_response(code)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            self.wfile.write(bytes(content, 'utf-8'))
-        except:
-            logging.error('Uncaught exception in get', exc_info=True)
+        (code, content) = self.commander.httpGet(self.path)
+        self.send_response(code)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(bytes(content, 'utf-8'))
 
     def do_POST(self):
-        try:
-            logging.info('POST request path: %s', self.path)
-            length = int(self.headers['content-length'])
-            request = urllib.parse.parse_qs(self.rfile.read(length).decode('utf-8'))
-            logging.info('POST request content: %s', json.dumps(request))
-            (code, response) = self.commander.httpPost(self.path, request)
-            self.send_response(code)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(bytes(json.dumps(response), 'utf-8'))
-        except:
-            logging.error('Uncaught exception in post', exc_info=True)
+        logging.info('POST request path: %s', self.path)
+        length = int(self.headers['content-length'])
+        request = urllib.parse.parse_qs(self.rfile.read(length).decode('utf-8'))
+        logging.info('POST request content: %s', json.dumps(request))
+        (code, response) = self.commander.httpPost(self.path, request)
+        self.send_response(code)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(bytes(json.dumps(response), 'utf-8'))
 
     def log_message(self, format, *args):
         logging.info(format, *args)
@@ -134,11 +125,11 @@ class Command:
                 logging.info('%d %s %f', workId, str(w.state), w.time)
 
             if self.curSpotFleetReq is None:
-                serverSummary = '''No running servers<br>'''
+                serverSummary = '''No running servers or fleet request<br>'''
             else:
                 servers = self.awsClient.getSpotFleetInstances(self.curSpotFleetReq)
                 if len(servers) == 0:
-                    serverSummary = '''No running servers<br>'''
+                    serverSummary = '''No running servers but running fleet request<br>'''
                 else:
                     ids = [s['InstanceId'] for s in servers]
                     longServers = self.awsClient.getInstances(ids)
@@ -158,7 +149,7 @@ class Command:
                        </form>'''
             cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form>'
 
-            joblist = '<br>'.join(['{}: {} => {}'.format(workId, w.settings.__dict__, w.results) for (workId, w) in self.workPieces.items()])
+            joblist = '<br>'.join(['{}: {} => bestmad: {}, bestmse: {}, mad: {}, mse: {}'.format(workId, w.settings.__dict__, w.results['bestMAD'], w.results['bestMSE'], w.results['mad'], w.results['mse']) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':

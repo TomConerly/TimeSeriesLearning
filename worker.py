@@ -4,25 +4,12 @@ import http.server
 import logging
 import logging.handlers
 import nn
+from nn import Settings
 import os
 import os.path
 import pickle
 import threading
 import time
-
-class Settings:
-    pass
-
-def setupLogging(awsClient):
-    logFile = awsClient.getLogFile()
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    needRoll = os.path.exists(logFile)
-    handler = logging.handlers.RotatingFileHandler(logFile, backupCount=10)
-    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    logger.addHandler(handler)
-    if needRoll:
-        handler.doRollover()
 
 class WorkerServer(http.server.BaseHTTPRequestHandler):
     def __init__(self, logFile, *args):
@@ -30,14 +17,11 @@ class WorkerServer(http.server.BaseHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self):
-        try:
-            with open(self.logFile, 'r') as fd:
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                self.wfile.write(bytes(fd.read().replace('\n', '\n<br>'), 'utf-8'))
-        except:
-            logging.error('Uncaught exception in get', exc_info=True)
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        with open(self.logFile, 'r') as fd:
+            self.wfile.write(bytes(fd.read().replace('\n', '\n<br>'), 'utf-8'))
 
     def log_message(self, format, *args):
         logging.info(format, *args)
@@ -50,9 +34,7 @@ def logServerThread(awsClient):
     port = 80
     def createServer(*args):
         return WorkerServer(awsClient.getLogFile(), *args)
-    logging.info('attempting port %d', port)
     server = http.server.HTTPServer(('', port), createServer)
-    logging.info('listening on %d', port)
     server.serve_forever()
     server.server_close()
 
@@ -70,7 +52,7 @@ class HeartBeat:
 
 def main():
     awsClient = aws.RealAWSClient()
-    setupLogging(awsClient)
+    command.setupLogging(awsClient)
     awsClient.downloadFile(aws.S3BUCKET, "training.csv", "training.csv")
 
     if not os.path.exists('tfmodels'):
@@ -112,11 +94,11 @@ def main():
         elif myType in ['c3.8xlarge', 'c4.8xlarge']:
             settings.trainingTime /= 8
 
-        mad, mse = nn.nn(settings, lambda: h.maybeSendHeartBeat())
+        mad, mse, bestMAD, bestMSE = nn.nn(settings, lambda: h.maybeSendHeartBeat())
 
         logging.info('Uploading results')
 
-        awsClient.putObject(aws.S3BUCKET, 'run{}.result'.format(workId), pickle.dumps({'mad': mad, 'mse': mse}))
+        awsClient.putObject(aws.S3BUCKET, 'run{}.result'.format(workId), pickle.dumps({'mad': mad, 'mse': mse, 'bestMAD': bestMAD, 'bestMSE': bestMSE}))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}.meta'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}'.format(workId))
         for f in os.listdir(os.path.join('tflogs/runtrain{}'.format(workId))):

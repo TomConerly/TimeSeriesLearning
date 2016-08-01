@@ -94,11 +94,23 @@ class Settings:
         if self.ordinalNan != s.ordinalNan:
             logging.info('Ordinal nan incompatible')
             return False
+        if self.normalizeInput != s.normalizeInput:
+            logging.info('Normalize input incompatible')
+            return False
         for col in CATEGORICAL_COLS:
             if getattr(self, col) != getattr(s, col):
                 logging.info('Categorical column {} incompatible'.format(col))
                 return False
         return True
+
+    def __str__(self):
+        cat = ''
+        for col in CATEGORICAL_COLS:
+            name = col
+            if col.startswith('COVAR_NOMINAL_'):
+                name = 'CVN' + col[-1]
+            cat += '{}: {},'.format(name, getattr(self, col))
+        return 'Run: {}, Resume: {}. Graph[Hidden: {}, Norm: {}, OrdNan: {}, Cat: {}]. Traning[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, trainPer: {}, valOff: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset)
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
@@ -193,6 +205,8 @@ def nn(settings, callback=None):
     startTime = time.time()
     at = 0
     step = 0
+    bestMSE = 1.0
+    bestMAD = 1.0
     while time.time() - startTime < settings.trainingTime:
         if callback is not None:
             callback()
@@ -217,8 +231,10 @@ def nn(settings, callback=None):
             summary_valid_writer.flush()
             logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
             saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
+            bestMSE = min(bestMSE, mseScore)
+            bestMAD = min(bestMAD, madScore)
         step += 1
-    return (madScore, mseScore)
+    return (madScore, mseScore, bestMAD, bestMSE)
 
 def getSettingsPath(runId):
     return os.path.join('tfmodels', 'run{}.settings'.format(runId))

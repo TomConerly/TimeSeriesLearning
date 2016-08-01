@@ -156,7 +156,6 @@ class RealAWSClient:
                         }
         launchSpecs = [{**launchSpec, **n, **t} for n in nets for t in typesDict]
         try:
-            # TODO do I need  'ClientToken': self.getMyInstance()['ClientToken'],
             config = {'SpotPrice': str(pricePerHour),
                       'TargetCapacity': capacity,
                       'IamFleetRole': 'arn:aws:iam::328628590430:role/aws-ec2-spot-fleet-role',
@@ -184,12 +183,6 @@ class RealAWSClient:
     def getInstanceType(self):
         return requests.get('http://169.254.169.254/latest/meta-data/instance-type').content.decode()
 
-    def getMyInstance(self):
-        inst = self.ec2.describe_instances(InstanceIds=[self.getInstanceId()])
-        if len(inst['Reservations']) != 1 or len(inst['Reservations'][0]['Instances']) != 1:
-            raise ValueError('invalid response')
-        return inst['Reservations'][0]['Instances'][0]
-
     def getInstances(self, instanceIds):
         res = self.ec2.describe_instances(InstanceIds=instanceIds)
         return sum([r['Instances'] for r in res['Reservations']], [])
@@ -202,26 +195,11 @@ class RealAWSClient:
 
     def terminateSelf(self):
         try:
-            self.ec2.terminate_instances(InstanceIds=[getMyInstance()])
+            self.ec2.terminate_instances(InstanceIds=[getInstanceId()])
             return True
         except:
             logging.error('terminate_instances failed', exc_info=True)
             return False
-
-    def checkPendingTermination(self):
-        r = requests.get('http://169.254.169.254/latest/meta-data/spot/termination-time')
-        if r.status_code != 200:
-            return False
-        terminationTime = dateutil.parser.parse(r.content.decode())
-        unixTerminationTime = terminationTime.timeStamp()
-        # Say we are getting terminated if termination time is in the future or 2 minutes in the past
-        return unixTerminationTime + 120 > time.time()
-
-    def cpuCount(self):
-        return os.cpu_count()
-
-    def onAWS(self):
-        return True
 
     def getLogFile(self):
         return '/home/ec2-user/log'
