@@ -33,7 +33,10 @@ class Input:
                 embeddingColumns.append(col)
                 embeddingSizes.append(getattr(settings, col))
 
-        categoricalOneHot = pd.get_dummies(data, columns=oneHotColumns, dummy_na=True)
+        if oneHotColumns == []:
+            categoricalOneHot = np.zeros((data.shape[0], 0))
+        else:
+            categoricalOneHot = pd.get_dummies(data, columns=oneHotColumns, dummy_na=True)
         categoricalEmbedding = data[embeddingColumns]
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.astype('category').cat.codes)
         categoricalEmbedding = categoricalEmbedding.apply(lambda x: x.replace(-1, x.max() + 1))
@@ -45,7 +48,7 @@ class Input:
         self.npOrdinal = np.array(ordinal.fillna(0)).astype(np.float32)
         if ordinalNan:
             self.npOrdinal = np.hstack([self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32))])
-        self.npCategoricalOneHot = np.array(ordinal).astype(np.float32)
+        self.npCategoricalOneHot = np.array(categoricalOneHot).astype(np.float32)
         self.npCategoricalEmbedding = np.array(categoricalEmbedding).astype(np.int32)
         self.categoricalFeatureEmbedSizes = zip([x + 1 for x in self.npCategoricalEmbedding.max(axis=0)], embeddingSizes, embeddingColumns)
         self.npOutputs = np.array(outputs).astype(np.float32)
@@ -124,9 +127,12 @@ class Graph:
         self.learningRate = tf.placeholder(tf.float32, [], name='learningRate')
 
         w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1ordinal")
-        w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
         b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
-        h1 = tf.matmul(self.ordinalInputs, w11) + tf.matmul(self.categoricalOneHotInputs, w12) + b1
+        h1 = tf.matmul(self.ordinalInputs, w11) + b1
+        if categoricalOneHotInputSize > 0:
+            w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
+            h1 += tf.matmul(self.categoricalOneHotInputs, w12)
+
         self.categoricalFeatureEmbedInputs = []
         for numClasses, embedSize, name in categoricalFeatureEmbedSizes:
             embedWeights = tf.Variable(tf.truncated_normal([numClasses, embedSize], stddev=0.1), name="embedWeights{}".format(name))
