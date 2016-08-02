@@ -149,7 +149,7 @@ var sources = [];
         .attr("y", -6)
         .attr("height", height2 + 7);
 
-    var mouseG = svg.append("g")
+    var mouseG = focus.append("g")
       .attr("class", "mouse-over-effects");
 
     mouseG.append("path") // this is the black vertical line to follow mouse
@@ -167,7 +167,7 @@ var sources = [];
       .attr("class", "mouse-per-line");
 
     mousePerLine.append("circle")
-      .attr("r", 7)
+      .attr("r", 4)
       .style("stroke", function(d) {
         return color(d.name);
       })
@@ -210,11 +210,6 @@ var sources = [];
 
         d3.selectAll(".mouse-per-line")
           .attr("transform", function(d, i) {
-            console.log(width/mouse[0])
-            var xDate = x.invert(mouse[0]),
-                bisect = d3.bisector(function(d) { return d.date; }).right;
-                idx = bisect(d.values, xDate);
-
             var beginning = 0,
                 end = lines[i].getTotalLength(),
                 target = null;
@@ -231,7 +226,7 @@ var sources = [];
             }
 
             d3.select(this).select('text')
-              .text(y.invert(pos.y).toFixed(2));
+              .text(y.invert(pos.y).toFixed(5));
 
             return "translate(" + mouse[0] + "," + pos.y +")";
           });
