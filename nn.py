@@ -164,6 +164,8 @@ class Graph:
         self.mad = tf.reduce_mean(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent) , name='mad')
         self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad)
 
+        self.gradients = tf.gradients(self.mad, tf.trainable_variables())
+
         logging.info('Done building graph')
 
 def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate=0.0):
@@ -247,7 +249,8 @@ def nn(settings, callback=None):
             else:
                 alpha = step / settings.learningRatet
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
-            sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
+            res = sess.run(graph.gradients + [graph.train_step], feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
+            gradients = res[:-1]
 
             if step % (100000 / settings.batchSize) == 0:
                 trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
