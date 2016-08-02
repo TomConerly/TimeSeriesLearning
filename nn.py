@@ -165,6 +165,9 @@ class Graph:
         self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad)
 
         self.gradients = tf.gradients(self.mad, tf.trainable_variables())
+        for g in self.gradients:
+            tf.histogram_summary(g.name, g)
+        self.summary_op = tf.merge_all_summaries()
 
         logging.info('Done building graph')
 
@@ -222,6 +225,7 @@ def nn(settings, callback=None):
     graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
 
     saver = tf.train.Saver()
+    summary_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'run{}'.format(settings.runId)), sess.graph)
     logging.info('Starting training')
     history = []
     with tf.Session() as sess:
@@ -249,8 +253,11 @@ def nn(settings, callback=None):
             else:
                 alpha = step / settings.learningRatet
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
-            res = sess.run(graph.gradients + [graph.train_step], feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
+            sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
             gradients = res[:-1]
+            if step % 10 == 0:
+                summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate)))
+                summary_writer.flush()
 
             if step % (100000 / settings.batchSize) == 0:
                 trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
