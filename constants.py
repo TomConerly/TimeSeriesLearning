@@ -97,12 +97,12 @@ var sources = [];
       return {
         name: name,
         values: data.map(function(d) {
-          return {step: d.step, value: +d[name]};
+          return {step: +d.step, value: +d[name]};
         })
       };
     });
 
-    x.domain(d3.extent(data, function(d) { return d.step; }));
+    x.domain(d3.extent(data, function(d) { return +d.step; }));
     y.domain([d3.min(sources, function(c) { return d3.min(c.values, function(v) { return v.value; }); }),
               d3.max(sources, function(c) { return d3.max(c.values, function(v) { return v.value; }); }) ]);
     x2.domain(x.domain());
