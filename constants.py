@@ -82,75 +82,80 @@ svg.append("defs").append("clipPath")
  
 var focus = svg.append("g")
   .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-      
+
 var context = svg.append("g")
   .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+var data = [];
 '''
-    mid = 'd3.csv("' + csvPath+ '", function(error, data) {'
+    mid = 'd3.csv("' + csvPath+ '", function(error, dataset) {'
     end = '''
-  color.domain(d3.keys(data[0]).filter(function(key) { return key !== "step"; }));
- 
-  var sources = color.domain().map(function(name) {
-      return {
-        name: name,
-        values: data.map(function(d) {
-          return {step: d.step, value: +d[name]};
-        })
-      };
-    });
- 
-    x.domain(d3.extent(data, function(d) { return d.step; }));
-    y.domain([d3.min(sources, function(c) { return d3.min(c.values, function(v) { return v.value; }); }),
-              d3.max(sources, function(c) { return d3.max(c.values, function(v) { return v.value; }); }) ]);
-    x2.domain(x.domain());
-    y2.domain(y.domain());
-    
-    var focuslineGroups = focus.selectAll("g")
-        .data(sources)
-      .enter().append("g");
-      
-    var focuslines = focuslineGroups.append("path")
-        .attr("class","line")
-        .attr("d", function(d) { return line(d.values); })
-        .style("stroke", function(d) {return color(d.name);})
-        .attr("clip-path", "url(#clip)");
-    
-    focus.append("g")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + height + ")")
-        .call(xAxis);
- 
-    focus.append("g")
-        .attr("class", "y axis")
-        .call(yAxis);
-        
-    var contextlineGroups = context.selectAll("g")
-        .data(sources)
-      .enter().append("g");
-    
-    var contextLines = contextlineGroups.append("path")
-        .attr("class", "line")
-        .attr("d", function(d) { return line2(d.values); })
-        .style("stroke", function(d) {return color(d.name);})
-        .attr("clip-path", "url(#clip)");
- 
-    context.append("g")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + height2 + ")")
-        .call(xAxis2);
- 
-    context.append("g")
-        .attr("class", "x brush")
-        .call(brush)
-      .selectAll("rect")
-        .attr("y", -6)
-        .attr("height", height2 + 7);
-        
-        
+  data = dataset;
 });
+
+color.domain(d3.keys(data[0]).filter(function(key) { return key !== "step"; }));
+
+var sources = color.domain().map(function(name) {
+  return {
+    name: name,
+    values: data.map(function(d) {
+      return {step: d.step, value: +d[name]};
+    })
+  };
+});
+
+x.domain(d3.extent(data, function(d) { return d.step; }));
+y.domain([d3.min(sources, function(c) { return d3.min(c.values, function(v) { return v.value; }); }),
+          d3.max(sources, function(c) { return d3.max(c.values, function(v) { return v.value; }); }) ]);
+x2.domain(x.domain());
+y2.domain(y.domain());
+
+var focuslineGroups = focus.selectAll("g")
+    .data(sources)
+    .enter().append("g");
+
+var focuslines = focuslineGroups.append("path")
+    .attr("class","line")
+    .attr("d", function(d) { return line(d.values); })
+    .style("stroke", function(d) {return color(d.name);})
+    .attr("clip-path", "url(#clip)");
+
+focus.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height + ")")
+    .call(xAxis);
+
+focus.append("g")
+    .attr("class", "y axis")
+    .call(yAxis);
+
+var contextlineGroups = context.selectAll("g")
+    .data(sources)
+    .enter().append("g");
+
+var contextLines = contextlineGroups.append("path")
+    .attr("class", "line")
+    .attr("d", function(d) { return line2(d.values); })
+    .style("stroke", function(d) {return color(d.name);})
+    .attr("clip-path", "url(#clip)");
+
+context.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height2 + ")")
+    .call(xAxis2);
+
+context.append("g")
+    .attr("class", "x brush")
+    .call(brush)
+    .selectAll("rect")
+    .attr("y", -6)
+    .attr("height", height2 + 7);
  
 function brush() {
-  x.domain(brush.empty() ? x2.domain() : brush.extent());
+  var domain = brush.empty() ? x2.domain() : brush.extent();
+  x.domain(domain);
+  y.domain([d3.min(sources, function(c) { return d3.min(c.values, function(v) { return domain[0] <= v.step && v.step <= domain[1] ? v.value : 1; }); }),
+            d3.max(sources, function(c) { return d3.max(c.values, function(v) { return domain[0] <= v.step && v.step <= domain[1] ? v.value : 0; }); }) ]);
   focus.selectAll("path.line").attr("d",  function(d) {return line(d.values)});
   focus.select(".x.axis").call(xAxis);
   focus.select(".y.axis").call(yAxis);
