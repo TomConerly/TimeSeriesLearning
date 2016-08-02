@@ -165,13 +165,13 @@ class Command:
                        </form>'''
             cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form>'
 
-            def formatHistory(history):
+            def formatHistory(history, workId):
                 if history == []:
                     return 'Not finished'
                 bestMAD = min([s.validMAD for s in history])
                 bestMSE = min([s.validMSE for s in history])
-                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f}'.format(bestMAD, bestMSE, history[-1].validMAD, history[-1].validMSE)
-            joblist = '<br>'.join(['{} => {}'.format(w.settings, formatHistory(w.history)) for (workId, w) in self.workPieces.items()])
+                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f} <a href="result{}">Graph</a>'.format(bestMAD, bestMSE, history[-1].validMAD, history[-1].validMSE, workId)
+            joblist = '<br>'.join(['{} => {}'.format(w.settings, formatHistory(w.history, workId)) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
