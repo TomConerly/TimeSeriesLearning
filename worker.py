@@ -106,6 +106,8 @@ def main():
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}best.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}best.meta'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}best'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}best'.format(workId))
+        for f in os.listdir(os.path.join('tflogs/run{}'.format(workId))):
+            awsClient.uploadFile(os.path.join('tflogs', 'run{}'.format(workId), f), aws.S3BUCKET, 'tflogs/run{}/{}'.format(workId, f))
 
         logging.info('Done uploading results')
 

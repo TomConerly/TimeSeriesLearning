@@ -165,8 +165,8 @@ class Graph:
         self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad)
 
         self.gradients = tf.gradients(self.mad, tf.trainable_variables())
-        for g in self.gradients:
-            tf.histogram_summary(g.name, g)
+        for g, v in zip(self.gradients, tf.trainable_variables()):
+            tf.histogram_summary(v.name, g)
         self.summary_op = tf.merge_all_summaries()
 
         logging.info('Done building graph')
@@ -225,11 +225,11 @@ def nn(settings, callback=None):
     graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
 
     saver = tf.train.Saver()
-    summary_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'run{}'.format(settings.runId)), sess.graph)
     logging.info('Starting training')
     history = []
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
+        summary_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'run{}'.format(settings.runId)), sess.graph)
 
         if settings.resumeRun is not None:
             logging.info('Resuming from run {}'.format(settings.resumeRun))
@@ -254,12 +254,11 @@ def nn(settings, callback=None):
                 alpha = step / settings.learningRatet
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
             sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
-            gradients = res[:-1]
-            if step % 10 == 0:
-                summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate)))
-                summary_writer.flush()
 
             if step % (100000 / settings.batchSize) == 0:
+                summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate)), step)
+                summary_writer.flush()
+
                 trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
                 validMAD, validMSE = evaluate(sess, graph, trainInput, start=trainingSize)
                 history.append(StepScore(trainMAD=trainMAD, trainMSE=trainMSE, validMAD=validMAD, validMSE=validMSE, step=step))
@@ -305,8 +304,15 @@ def main():
         settings = Settings(args)
         logging.info('settings: {}', settings.__dict__)
         if os.path.isfile(getSettingsPath(args.runId)):
-            logging.info('Run already exists! Exiting')
-            return
+            if args.override:
+                os.remove(getSettingsPath(args.runId))
+                if os.path.isdir(os.path.join('tflogs', 'run{}'.format(args.runId))):
+                    for f in os.listdir(os.path.join('tflogs', 'run{}'.format(args.runId))):
+                        os.remove(os.path.join('tflogs', 'run{}'.format(args.runId), f))
+                    os.rmdir(os.path.join('tflogs', 'run{}'.format(args.runId)))
+            else:
+                logging.info('Run already exists! Exiting')
+                return
         if args.resumeRun is not None:
             logging.info('Resuming from run: {}'.format(args.resumeRun))
             if not os.path.isfile(getSettingsPath(args.resumeRun)):
