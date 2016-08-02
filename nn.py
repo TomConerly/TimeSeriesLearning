@@ -11,7 +11,7 @@ import time
 
 CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8"]
 
-StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE'])
+StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE', 'step'])
 
 def shuffleParallel(L):
     for l in L:
@@ -252,7 +252,7 @@ def nn(settings, callback=None):
             if step % (100000 / settings.batchSize) == 0:
                 trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
                 validMAD, validMSE = evaluate(sess, graph, trainInput, start=trainingSize)
-                history.append(StepScore(trainMAD=trainMAD, trainMSE=trainMSE, validMAD=validMAD, validMSE=validMSE))
+                history.append(StepScore(trainMAD=trainMAD, trainMSE=trainMSE, validMAD=validMAD, validMSE=validMSE, step=step))
                 logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, validMSE, validMAD))
                 saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
                 if validMAD < bestMAD:

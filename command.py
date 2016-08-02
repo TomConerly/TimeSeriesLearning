@@ -170,7 +170,7 @@ class Command:
                     return 'Not finished'
                 bestMAD = min([s.validMAD for s in history])
                 bestMSE = min([s.validMSE for s in history])
-                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f} <a href="result{}">Graph</a>'.format(bestMAD, bestMSE, history[-1].validMAD, history[-1].validMSE, workId)
+                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f}, steps: {} <a href="result{}">Graph</a>'.format(bestMAD, bestMSE, history[-1].validMAD, history[-1].validMSE, history[-1].step, workId)
             joblist = '<br>'.join(['{} => {}'.format(w.settings, formatHistory(w.history, workId)) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
@@ -207,7 +207,7 @@ class Command:
             workId = int(path[8:])
             if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
                 return (404, 'No result')
-            return (200, 'step,validMAD,validMSE,trainMAD,trainMSE\n{}'.format('\n'.join(['{},{},{},{}'.format(h.validMAD, h.validMSE, h.trainMAD, h.trainMSE) for h in self.workPieces[workId].history])))
+            return (200, 'step,validMAD,validMSE,trainMAD,trainMSE\n{}'.format('\n'.join(['{}, {},{},{},{}'.format(h.step, h.validMAD, h.validMSE, h.trainMAD, h.trainMSE) for h in enumerate(self.workPieces[workId].history]))))
         else:
             return (404, 'Unknown path: {}'.format(path))
 
@@ -244,13 +244,15 @@ class Command:
         elif request['Type'][0] == HEARTBEAT:
             workId = int(request['WorkId'][0])
             logging.info('Got heart beat request workId: %s', workId)
-            if workId in self.workPieces and self.workPieces[workId].state == WorkPieceState.assigned:
+            if workId in self.workPieces:
                 logging.info('Found work item, time since last heartbeat: %f', time.time() - self.workPieces[workId].time)
                 self.workPieces[workId].time = time.time()
+                if self.workPieces[workId].state == WorkPieceState.unassigned:
+                    self.workPieces[workId].state = WorkPieceState.assigned
         elif request['Type'][0] == FINISHEDWORK:
             workId = int(request['WorkId'][0])
             logging.info('Got finished work request workId: %s', workId)
-            if workId in self.workPieces and self.workPieces[workId].state == WorkPieceState.assigned:
+            if workId in self.workPieces:
                 self.workPieces[workId].state = WorkPieceState.finished
         else:
             logging.info('Got unknown request type %s', request['Type'][0])
