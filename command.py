@@ -1,10 +1,12 @@
 import aws
+import constants
+import csv
 import enum
 import http.server
 import json
 import logging
 import logging.handlers
-from nn import Settings
+from nn import Settings, StepScore
 import os
 import pickle
 import requests
@@ -69,11 +71,11 @@ class WorkPieceState(enum.Enum):
     finished = 3
 
 class WorkPiece:
-    def __init__(self, state, time=0.0, settings={}, results={}):
+    def __init__(self, state, time=0.0, settings={}, history=[]):
         self.state = state
         self.time = time
         self.settings = settings
-        self.results = results
+        self.history = history
 
 class CommandServer(http.server.BaseHTTPRequestHandler):
     def __init__(self, commander, *args):
@@ -151,15 +153,25 @@ class Command:
             start = '''<form action="start" method="get">
                            Price per vCPU/hour: <input type="number" name="price" step="any"><br>
                            Number of vCPUs: <input type="number" name="vcpus"><br>
+                           <input type="checkbox" name="type" value="c3.xlarge" checked="checked">c3.xlarge<br>
+                           <input type="checkbox" name="type" value="c3.2xlarge" checked="checked">c3.2xlarge<br>
+                           <input type="checkbox" name="type" value="c3.4xlarge" checked="checked">c3.4xlarge<br>
+                           <input type="checkbox" name="type" value="c3.8xlarge" checked="checked">c3.8xlarge<br>
+                           <input type="checkbox" name="type" value="c4.xlarge" checked="checked">c4.xlarge<br>
+                           <input type="checkbox" name="type" value="c4.2xlarge" checked="checked">c4.2xlarge<br>
+                           <input type="checkbox" name="type" value="c4.4xlarge" checked="checked">c4.4xlarge<br>
+                           <input type="checkbox" name="type" value="c4.8xlarge" checked="checked">c4.8xlarge<br>
                            <input type="submit" value="Start"><br>
                        </form>'''
             cancel = '<form action="cancel" method="get"><input type="submit" value="Cancel"></form>'
 
-            def formatResult(res):
-                if res == {}:
+            def formatHistory(history):
+                if history == []:
                     return 'Not finished'
-                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f}'.format(res['bestMAD'], res['bestMSE'], res['mad'], res['mse'])
-            joblist = '<br>'.join(['{} => {}'.format(w.settings, formatResult(w.results)) for (workId, w) in self.workPieces.items()])
+                bestMAD = min([s.validMAD for s in history])
+                bestMSE = min([s.validMSE for s in history])
+                return 'bmad: {:.6f}, bmse: {:.6f}, mad: {:.6f}, mse: {:.6f}'.format(bestMAD, bestMSE, history[-1].validMAD, history[-1].validMSE)
+            joblist = '<br>'.join(['{} => {}'.format(w.settings, formatHistory(w.history)) for (workId, w) in self.workPieces.items()])
 
             return (200, '{}<br>{}<br>{}{}<br>{}'.format(workSummary, serverSummary, start, cancel, joblist))
         elif path == '/log':
@@ -169,6 +181,7 @@ class Command:
             args = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
             price = float(args['price'][0])
             vcpus = int(args['vcpus'][0])
+            types = args['type']
 
             if self.curSpotFleetReq != None:
                 logging.info('Modifying existing spot fleet request')
@@ -176,7 +189,7 @@ class Command:
                 return (200, "Modified existing request")
             else:
                 logging.info('Sending spot fleet request')
-                self.curSpotFleetReq = self.awsClient.sendSpotFleetRequest(price, vcpus)
+                self.curSpotFleetReq = self.awsClient.sendSpotFleetRequest(price, vcpus, types)
                 if self.curSpotFleetReq == None:
                     return (400, 'Request failed')
             return (200, 'Success!')
@@ -185,6 +198,17 @@ class Command:
                 self.awsClient.cancelSpotFleetRequest(self.curSpotFleetReq, terminateInstances=True)
                 self.curSpotFleetReq = None
             return (200, 'Canceled')
+        elif path.startswith('/result'):
+            workId = int(path[7:])
+            if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
+                return (200, 'No result')
+            content = constants.d3script('history{}'.format(workId))
+            return (200, '')
+        elif path.startswith('/history'):
+            workId = int(path[8:])
+            if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
+                return (404, 'No result')
+            return (200, 'step,validMAD,validMSE,trainMAD,trainMSE\n{}'.format('\n'.join(['{},{},{},{}'.format(h.validMAD, h.validMSE, h.trainMAD, h.trainMSE) for h in self.workPeices[workId].history])))
         else:
             return (404, 'Unknown path: {}'.format(path))
 
@@ -278,8 +302,8 @@ class Command:
                    if key.endswith('result'):
                        workId = int(key[3:-7])
                        self.workPieces[workId].state = WorkPieceState.finished
-                       if len(self.workPieces[workId].results) == 0:
-                           self.workPieces[workId].results = pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read())
+                       if len(self.workPieces[workId].history) == 0:
+                           self.workPieces[workId].history = pickle.loads(self.awsClient.getObjectBody(aws.S3BUCKET, key).read())
 
             httpServer.handle_request()
 

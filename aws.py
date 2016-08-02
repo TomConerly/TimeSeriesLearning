@@ -95,7 +95,7 @@ class RealAWSClient:
             logging.error('modify_spot_fleet_requests failed', exc_info=True)
             return False
 
-    def sendSpotFleetRequest(self, pricePerHour, capacity):
+    def sendSpotFleetRequest(self, pricePerHour, capacity, requestedTypes):
         if pricePerHour * capacity > 10:
             logging.error('Tried to spend more than $10/hr')
             return None
@@ -130,10 +130,8 @@ class RealAWSClient:
                                 "Groups": ["sg-fc6af29a"]
                             }
                         ],}
-        # ('c4.4xlarge', 16), ('c4.8xlarge', 32), ('c3.4xlarge', 16), ('c3.8xlarge', 32)
-        # ('c4.xlarge', 4), ('c3.xlarge', 4),
-        types = [('c4.2xlarge', 8), ('c3.2xlarge', 8)]
-        types = [(n, s) for (n, s) in types if capacity % s == 0]
+        types = [('c4.xlarge', 4), ('c4.2xlarge', 8), ('c4.4xlarge', 16), ('c4.8xlarge', 32), ('c3.xlarge', 4), ('c3.2xlarge', 8), ('c3.4xlarge', 16), ('c3.8xlarge', 32)]
+        types = [(n, s) for (n, s) in types if capacity % s == 0 and n in requestedTypes]
         typesDict = [{'InstanceType': name, 'WeightedCapacity': cap} for (name, cap) in types]
         nets = [net1, net2, net3]
         with open('/home/ec2-user/source/init_worker', 'r') as fd:

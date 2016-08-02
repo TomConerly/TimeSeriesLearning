@@ -4,7 +4,7 @@ import http.server
 import logging
 import logging.handlers
 import nn
-from nn import Settings
+from nn import Settings, StepScore
 import os
 import os.path
 import pickle
@@ -97,17 +97,15 @@ def main():
         elif myType in ['c3.8xlarge', 'c4.8xlarge']:
             settings.trainingTime /= 8
 
-        mad, mse, bestMAD, bestMSE = nn.nn(settings, lambda: h.maybeSendHeartBeat())
+        history = nn.nn(settings, lambda: h.maybeSendHeartBeat())
 
         logging.info('Uploading results')
 
-        awsClient.putObject(aws.S3BUCKET, 'run{}.result'.format(workId), pickle.dumps({'mad': mad, 'mse': mse, 'bestMAD': bestMAD, 'bestMSE': bestMSE}))
+        awsClient.putObject(aws.S3BUCKET, 'run{}.result'.format(workId), pickle.dumps(history))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}.meta'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}'.format(workId))
-        for f in os.listdir(os.path.join('tflogs/runtrain{}'.format(workId))):
-            awsClient.uploadFile(os.path.join('tflogs', 'runtrain{}'.format(workId), f), aws.S3BUCKET, 'tflogs/runtrain{}/{}'.format(workId, f))
-        for f in os.listdir(os.path.join('tflogs/runvalid{}'.format(workId))):
-            awsClient.uploadFile(os.path.join('tflogs', 'runvalid{}'.format(workId), f), aws.S3BUCKET, 'tflogs/runvalid{}/{}'.format(workId, f))
+        awsClient.uploadFile(os.path.join('tfmodels', 'run{}best.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}best.meta'.format(workId))
+        awsClient.uploadFile(os.path.join('tfmodels', 'run{}best'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}best'.format(workId))
 
         logging.info('Done uploading results')
 

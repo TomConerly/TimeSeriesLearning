@@ -1,5 +1,6 @@
 import argparse
 import aws
+import collections
 import logging
 import numpy as np
 import os
@@ -9,6 +10,8 @@ import tensorflow as tf
 import time
 
 CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8"]
+
+StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE'])
 
 def shuffleParallel(L):
     for l in L:
@@ -161,9 +164,6 @@ class Graph:
         self.mad = tf.reduce_mean(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent) , name='mad')
         self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad)
 
-        tf.scalar_summary('mse', self.mse)
-        tf.scalar_summary('mad', self.mad)
-        self.summary_op = tf.merge_all_summaries()
         logging.info('Done building graph')
 
 def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate=0.0):
@@ -191,6 +191,25 @@ def predict(settings):
         logging.info('Saving prediction')
         np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
 
+def evaluate(sess, graph, input, start=None, end=None):
+    if start is None:
+        start = 0
+    if end is None:
+        end = len(input.npOrdinal)
+
+    length = end - start
+    mad = 0
+    mse = 0
+    while start < end:
+        s = start
+        e = min(s + 10000, end)
+        madScore, mseScore= sess.run([graph.mad, graph.mse], feed_dict=makeFeedDict(graph, input, start=s, end=e))
+        mad += madScore * (e - s) / length
+        mse += mseScore * (e - s) / length
+        start = e
+
+    return (mad, mse)
+
 def nn(settings, callback=None):
     logging.info('Training')
     trainInput = Input('training.csv', shuffle=True, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
@@ -202,10 +221,9 @@ def nn(settings, callback=None):
 
     saver = tf.train.Saver()
     logging.info('Starting training')
+    history = []
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
-        summary_train_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runtrain{}'.format(settings.runId)), sess.graph)
-        summary_valid_writer = tf.train.SummaryWriter(os.path.join('tflogs', 'runvalid{}'.format(settings.runId)), sess.graph)
 
         if settings.resumeRun is not None:
             logging.info('Resuming from run {}'.format(settings.resumeRun))
@@ -232,18 +250,17 @@ def nn(settings, callback=None):
             sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
             if step % (100000 / settings.batchSize) == 0:
-                summary_train_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, end=trainingSize)), step)
-                summary_train_writer.flush()
-
-                madScore, mseScore, summary = sess.run([graph.mad, graph.mse, graph.summary_op], feed_dict=makeFeedDict(graph, trainInput, start=trainingSize))
-                summary_valid_writer.add_summary(summary, step)
-                summary_valid_writer.flush()
-                logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, mseScore, madScore))
+                trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
+                validMAD, validMSE = evaluate(sess, graph, trainInput, start=trainingSize)
+                history.append(StepScore(trainMAD=trainMAD, trainMSE=trainMSE, validMAD=validMAD, validMSE=validMSE))
+                logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, validMSE, validMAD))
                 saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
-                bestMSE = min(bestMSE, mseScore)
-                bestMAD = min(bestMAD, madScore)
+                if validMAD < bestMAD:
+                    saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
+                bestMSE = min(bestMSE, validMSE)
+                bestMAD = min(bestMAD, validMAD)
             step += 1
-        return (madScore, mseScore, bestMAD, bestMSE)
+        return history
 
 def getSettingsPath(runId):
     return os.path.join('tfmodels', 'run{}.settings'.format(runId))
