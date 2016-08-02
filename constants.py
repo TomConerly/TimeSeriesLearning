@@ -45,8 +45,8 @@ var margin = {top: 10, right: 10, bottom: 100, left: 40},
  
 var color = d3.scale.category10();
  
-var x = d3.time.scale().range([0, width]),
-    x2 = d3.time.scale().range([0, width]),
+var x = d3.scale.linear().range([0, width]),
+    x2 = d3.scale.linear().range([0, width]),
     y = d3.scale.linear().range([height, 0]),
     y2 = d3.scale.linear().range([height2, 0]);
  
