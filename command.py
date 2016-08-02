@@ -207,7 +207,7 @@ class Command:
             workId = int(path[8:])
             if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
                 return (404, 'No result')
-            return (200, 'step,validMAD,trainMAD\n{}'.format('\n'.join(['{},{},{},{},{}'.format(h.step, h.validMAD, h.trainMAD) for h in self.workPieces[workId].history])))
+            return (200, 'step,validMAD,trainMAD\n{}'.format('\n'.join(['{},{},{}'.format(h.step, h.validMAD, h.trainMAD) for h in self.workPieces[workId].history])))
         else:
             return (404, 'Unknown path: {}'.format(path))
 
