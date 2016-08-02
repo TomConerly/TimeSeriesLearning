@@ -202,13 +202,12 @@ class Command:
             workId = int(path[7:])
             if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
                 return (200, 'No result')
-            content = constants.d3script('history{}'.format(workId))
-            return (200, '')
+            return (200, constants.d3script('history{}'.format(workId)))
         elif path.startswith('/history'):
             workId = int(path[8:])
             if workId not in self.workPieces or len(self.workPieces[workId].history) == 0:
                 return (404, 'No result')
-            return (200, 'step,validMAD,validMSE,trainMAD,trainMSE\n{}'.format('\n'.join(['{},{},{},{}'.format(h.validMAD, h.validMSE, h.trainMAD, h.trainMSE) for h in self.workPeices[workId].history])))
+            return (200, 'step,validMAD,validMSE,trainMAD,trainMSE\n{}'.format('\n'.join(['{},{},{},{}'.format(h.validMAD, h.validMSE, h.trainMAD, h.trainMSE) for h in self.workPieces[workId].history])))
         else:
             return (404, 'Unknown path: {}'.format(path))
 
