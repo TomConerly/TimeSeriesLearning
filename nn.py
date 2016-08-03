@@ -90,6 +90,8 @@ class Settings:
         self.learningRate0 = args.learningRate0
         self.learningRate1 = args.learningRate1
         self.learningRatet = args.learningRatet
+        self.l1reg = args.l1reg
+        self.l2reg = args.l2reg
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -130,16 +132,20 @@ class Graph:
         self.outputsPresent = tf.placeholder(tf.float32, [None, 3], name='outputsPresent')
         self.learningRate = tf.placeholder(tf.float32, [], name='learningRate')
 
+        weightsToReg = []
         w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1ordinal")
+        weightsToReg.append(w11)
         b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
         h1 = tf.matmul(self.ordinalInputs, w11) + b1
         if categoricalOneHotInputSize > 0:
             w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
+            weightsToReg.append(w12)
             h1 += tf.matmul(self.categoricalOneHotInputs, w12)
 
         self.categoricalFeatureEmbedInputs = []
         for numClasses, embedSize, name in categoricalFeatureEmbedSizes:
             embedWeights = tf.Variable(tf.truncated_normal([numClasses, embedSize], stddev=0.1), name="embedWeights{}".format(name))
+            weightsToReg.append(embedWeights)
             embedInput = tf.placeholder(tf.int32, shape=[None], name="embedInput{}".format(name))
             embedOutput = tf.nn.embedding_lookup(embedWeights, embedInput, name="embedOutput{}".format(name))
             firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
@@ -151,6 +157,7 @@ class Graph:
         zdrops = [z1drop]
         for i in range(1, len(settings.hiddenLayerSizes)):
             w = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], stddev=0.1), name="w{}".format(i+1))
+            weightsToReg.append(w)
             b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
             h = tf.matmul(zdrops[-1], w) + b
             z = tf.nn.relu(h, name="z{}".format(i+1))
@@ -158,12 +165,33 @@ class Graph:
             zdrops.append(zdrop)
 
         woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
+        weightsToReg.append(woutput)
         boutput = tf.Variable(tf.constant(0.1, shape=[3]), name="b3")
         self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
 
         self.mse = tf.reduce_mean(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), name='mse')
         self.mad = tf.reduce_mean(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent) , name='mad')
-        self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad)
+
+        regTerm = tf.constant(0.0, shape=[])
+        if settings.l1reg > 0.0:
+            l1regTerm = tf.constant(0.0, shape=[])
+            totalTerms = 0
+            for w in weightsToReg:
+                shape = w.get_shape()
+                totalTerms += int(shape.dims[0]) * int(shape.dims[1])
+                l1regTerm += int(shape.dims[0]) * int(shape.dims[1]) * tf.reduce_mean(tf.abs(w))
+            regTerm += l1regTerm * settings.l1reg / totalTerms
+
+        if settings.l2reg > 0.0:
+            l2regTerm = tf.constant(0.0, shape=[])
+            totalTerms = 0
+            for w in weightsToReg:
+                shape = w.get_shape()
+                totalTerms += int(shape.dims[0]) * int(shape.dims[1])
+                l2regTerm += int(shape.dims[0]) * int(shape.dims[1]) * tf.reduce_mean(tf.square(w))
+            regTerm += l2regTerm * settings.l2reg / totalTerms
+
+        self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad + regTerm)
 
         self.gradients = tf.gradients(self.mad, tf.trainable_variables())
         for g, v in zip(self.gradients, tf.trainable_variables()):
@@ -302,6 +330,8 @@ def main():
     parser.add_argument('--validationOffset', type=float, default=0.8, help='validationOffset')
     parser.add_argument('--ordinalNan', action='store_true', default=False, help='')
     parser.add_argument('--override', action='store_true', default=False, help='')
+    parser.add_argument('--l1reg', type=float, default=0.0, help='')
+    parser.add_argument('--l2reg', type=float, default=0.0, help='')
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
