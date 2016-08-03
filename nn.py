@@ -13,9 +13,9 @@ CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COV
 
 StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE', 'step'])
 
-def shuffleParallel(L):
+def shuffleParallel(L, seed=0):
     for l in L:
-        np.random.seed(0)
+        np.random.seed(seed)
         np.random.shuffle(l)
 
 class Input:
@@ -48,7 +48,11 @@ class Input:
         outputs = outputs.fillna(0)
         outputsPresent = data[["COVAR_y1_MISSING","COVAR_y2_MISSING","COVAR_y3_MISSING"]].astype(int)
 
-        self.npOrdinal = np.array(ordinal.fillna(0)).astype(np.float32)
+        if settings.nanToMean:
+            mean = ordinal.mean()
+            self.npOrdinal = np.array(ordinal.fillna(mean)).astype(np.float32)
+        else:
+            self.npOrdinal = np.array(ordinal.fillna(0)).astype(np.float32)
         if ordinalNan:
             self.npOrdinal = np.hstack([self.npOrdinal, np.array(1 - ordinal.notnull().astype(np.float32))])
         self.npCategoricalOneHot = np.array(categoricalOneHot).astype(np.float32)
@@ -93,6 +97,9 @@ class Settings:
         self.l1reg = args.l1reg
         self.l2reg = args.l2reg
         self.activation = args.activation
+        self.reshuffle = args.reshuffle
+        self.nanToMean = args.nanToMean
+        self.splitExtraLayer = args.splitExtraLayer
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -178,10 +185,25 @@ class Graph:
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
-        woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
-        weightsToReg.append(woutput)
-        boutput = tf.Variable(tf.constant(0.1, shape=[3]), name="b3")
-        self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
+        if settings.splitExtraLayer > 0:
+            houtputs = []
+            for i in range(3):
+                wextra = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], stddev=0.1), name="wextra{}".format(i))
+                weightsToReg.append(wextra)
+                bextra = tf.Variable(tf.constant(0.1, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
+                zextra = activation(tf.matmul(zdrops[-1], wextra) + bextra)
+
+                woutput = tf.Variable(tf.truncated_normal([settings.splitExtraLayer, 1], stddev=0.1), name="woutput{}".format(i))
+                weightsToReg.append(woutput)
+                boutput = tf.Variable(tf.constant(0.1, shape=[1]), name="boutput{}".format(i))
+                houtputs.append(tf.matmul(zextra, woutput) + boutput)
+
+            self.houtput = tf.concat(1, houtputs)
+        else:
+            woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
+            weightsToReg.append(woutput)
+            boutput = tf.Variable(tf.constant(0.1, shape=[3]), name="b3")
+            self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
 
         self.mse = tf.reduce_mean(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), name='mse')
         self.mad = tf.reduce_mean(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent) , name='mad')
@@ -295,6 +317,8 @@ def nn(settings, callback=None):
                 callback()
             if at * settings.batchSize >= trainingSize:
                 at = 0
+                if settings.reshuffle:
+                    shuffleParallel([trainInput.npOrdinal[:trainingSize], trainInput.npCategoricalOneHot[:trainingSize], trainInput.npCategoricalEmbedding[:trainingSize], trainInput.npOutputs[:trainingSize], trainInput.npOutputsPresent[:trainingSize]], seed=int(time.time()))
             start = at * settings.batchSize
             end = min(start + settings.batchSize, trainingSize)
             at += 1
@@ -347,6 +371,9 @@ def main():
     parser.add_argument('--l1reg', type=float, default=0.0, help='')
     parser.add_argument('--l2reg', type=float, default=0.0, help='')
     parser.add_argument('--activation', type=str, default='relu', choices=['relu', 'sigmoid', 'tanh'])
+    parser.add_argument('--reshuffle', action='store_true', default=False)
+    parser.add_argument('--nanToMean', action='store_true', default=False)
+    parser.add_argument('--splitExtraLayer', type=int, default=0)
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
