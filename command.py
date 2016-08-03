@@ -285,7 +285,7 @@ class Command:
             if now - lastHeartBeatScan > 60:
                 lastHeartBeatScan = now
                 for (workId, w) in self.workPieces.items():
-                    if w.state == WorkPieceState.assigned and now - w.time > 600:
+                    if w.state == WorkPieceState.assigned and now - w.time > 300:
                         logging.info('No heart beat in %f seconds for workId %d marking unassigned',
                                      now - w.time, workId)
                         w.state = WorkPieceState.unassigned

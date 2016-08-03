@@ -336,7 +336,6 @@ def main():
     parser.add_argument('--batchSize', type=int, default=1000, help='batchSize')
     parser.add_argument('--trainingTime', type=int, default=60*60*5, help='trainingTime')
     parser.add_argument('--dropout', type=float, default=1.0, help='dropout')
-    parser.add_argument('--dropoutLayers', type=float, default=1.0, help='dropout')
     parser.add_argument('--learningRate0', type=float, default=1e-3, help='')
     parser.add_argument('--learningRate1', type=float, default=1e-4, help='')
     parser.add_argument('--learningRatet', type=float, default=100000, help='')
