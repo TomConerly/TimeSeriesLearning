@@ -48,7 +48,7 @@ class Input:
         outputs = outputs.fillna(0)
         outputsPresent = data[["COVAR_y1_MISSING","COVAR_y2_MISSING","COVAR_y3_MISSING"]].astype(int)
 
-        if settings.nanToMean:
+        if hasattr(settings, 'nanToMean') and settings.nanToMean:
             mean = ordinal.mean()
             self.npOrdinal = np.array(ordinal.fillna(mean)).astype(np.float32)
         else:
@@ -189,7 +189,7 @@ class Graph:
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
-        if settings.splitExtraLayer > 0:
+        if hasattr(settings, 'splitExtraLayer') and settings.splitExtraLayer > 0:
             houtputs = []
             for i in range(3):
                 wextra = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], stddev=0.1), name="wextra{}".format(i))
@@ -272,8 +272,31 @@ def predict(settings):
         logging.info('Saving prediction')
         np.savetxt('pred.csv', np.vstack(testPredictions), delimiter=',', fmt='%.9f')
 
-def predictEnsemble(settings):
-    pass
+def predictEnsemble(settingsList):
+    logging.info('Predicting')
+
+    predictions = []
+    for settings in settingsList:
+        testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
+        graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
+
+        with tf.Session() as sess:
+            saver = tf.train.Saver()
+            logging.info('Restoring model')
+            saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
+
+            testPredictions = []
+            at = 0
+            while at < testInput.npOrdinal.shape[0]:
+                start = at
+                logging.info(start)
+                end = min(at + 10000, testInput.npOrdinal.shape[0])
+                testPredictions.append(sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput, start=start, end=end)))
+                at = end
+            predictions.append(np.vstack(testPredictions))
+
+    logging.info('Saving prediction')
+    np.savetxt('predEnsemble.csv', np.median(predictions, axis=0), delimiter=',', fmt='%.9f')
 
 def evaluate(sess, graph, input, start=None, end=None):
     if start is None:
@@ -417,9 +440,9 @@ def main():
             pickle.dump(settings, f)
         nn(settings)
     elif args.predict:
-        if len(settings.ensembledPredict) > 0:
+        if args.ensemblePredict is not None:
             allSettings = []
-            for run in settings.ensembledPredict:
+            for run in args.ensemblePredict:
                 if not os.path.isfile(getSettingsPath(run)):
                     logging.info("Run doesn't exist. Exiting")
                     return
