@@ -92,6 +92,7 @@ class Settings:
         self.learningRatet = args.learningRatet
         self.l1reg = args.l1reg
         self.l2reg = args.l2reg
+        self.activation = args.activation
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -106,6 +107,9 @@ class Settings:
         if self.normalizeInput != s.normalizeInput:
             logging.info('Normalize input incompatible')
             return False
+        if self.activation != s.activation:
+            logging.info('Activation function incompatible')
+            return False
         for col in CATEGORICAL_COLS:
             if getattr(self, col) != getattr(s, col):
                 logging.info('Categorical column {} incompatible'.format(col))
@@ -119,7 +123,7 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
@@ -151,7 +155,17 @@ class Graph:
             firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
             h1 += tf.matmul(embedOutput, firstLayerWeights)
             self.categoricalFeatureEmbedInputs.append(embedInput)
-        z1 = tf.nn.relu(h1, name="z1")
+
+        if settings.activation == 'relu':
+            activation = tf.nn.relu
+        elif settings.activation == 'sigmoid':
+            activation = tf.nn.sigmoid
+        elif settings.activation == 'tanh':
+            activation = tf.nn.tanh
+        else:
+            logging.error('Unknown activation {}'.format(settings.activation))
+            activation = tf.nn.relu
+        z1 = activation(h1, name="z1")
         z1drop = tf.nn.dropout(z1, self.keep_prob, name="z1drop")
 
         zdrops = [z1drop]
@@ -160,7 +174,7 @@ class Graph:
             weightsToReg.append(w)
             b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
             h = tf.matmul(zdrops[-1], w) + b
-            z = tf.nn.relu(h, name="z{}".format(i+1))
+            z = activation(h, name="z{}".format(i+1))
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
@@ -322,6 +336,7 @@ def main():
     parser.add_argument('--batchSize', type=int, default=1000, help='batchSize')
     parser.add_argument('--trainingTime', type=int, default=60*60*5, help='trainingTime')
     parser.add_argument('--dropout', type=float, default=1.0, help='dropout')
+    parser.add_argument('--dropoutLayers', type=float, default=1.0, help='dropout')
     parser.add_argument('--learningRate0', type=float, default=1e-3, help='')
     parser.add_argument('--learningRate1', type=float, default=1e-4, help='')
     parser.add_argument('--learningRatet', type=float, default=100000, help='')
@@ -332,6 +347,7 @@ def main():
     parser.add_argument('--override', action='store_true', default=False, help='')
     parser.add_argument('--l1reg', type=float, default=0.0, help='')
     parser.add_argument('--l2reg', type=float, default=0.0, help='')
+    parser.add_argument('--activation', type=str, default='relu', choices=['relu', 'sigmoid', 'tanh'])
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
