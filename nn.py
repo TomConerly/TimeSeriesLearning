@@ -192,9 +192,16 @@ def predict(settings):
         logging.info('Restoring model')
         saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
 
-        testPredictions = sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput))
+        testPredictions = []
+        at = 0
+        while at < testInput.npOrdinal.shape[0]:
+            start = at
+            logging.info(start)
+            end = min(at + 10000, testInput.npOrdinal.shape[0])
+            testPredictions.append(sess.run(graph.houtput, feed_dict=makeFeedDict(graph, testInput, start=start, end=end)))
+            at = end
         logging.info('Saving prediction')
-        np.savetxt('pred.csv', testPredictions, delimiter=',', fmt='%.9f')
+        np.savetxt('pred.csv', np.vstack(testPredictions), delimiter=',', fmt='%.9f')
 
 def evaluate(sess, graph, input, start=None, end=None):
     if start is None:
@@ -255,14 +262,14 @@ def nn(settings, callback=None):
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
             sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
-            if step % (100000 / settings.batchSize) == 0:
-                summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate)), step)
+            if step % (1000000 / settings.batchSize) == 0:
+                summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, learningRate=learningRate)), step)
                 summary_writer.flush()
 
                 trainMAD, trainMSE = evaluate(sess, graph, trainInput, end=trainingSize)
                 validMAD, validMSE = evaluate(sess, graph, trainInput, start=trainingSize)
                 history.append(StepScore(trainMAD=trainMAD, trainMSE=trainMSE, validMAD=validMAD, validMSE=validMSE, step=step))
-                logging.info('step {}, mse: {:.6f}, mad: {:.6f}'.format(step, validMSE, validMAD))
+                logging.info('step {}, mse: {:.6f}, mad: {:.6f}, tmse: {:.6f}, tmad: {:.6f}'.format(step, validMSE, validMAD, trainMSE, trainMAD))
                 saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
                 if validMAD < bestMAD:
                     saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
