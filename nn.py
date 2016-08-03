@@ -130,7 +130,11 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+            def get(name):
+                if hasattr(self, name):
+                    return getattr(self, name)
+                return ''
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, get('activation'), self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, get('l1reg'), get('l2reg'))
 
 class Graph:
     def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
@@ -268,6 +272,9 @@ def predict(settings):
         logging.info('Saving prediction')
         np.savetxt('pred.csv', np.vstack(testPredictions), delimiter=',', fmt='%.9f')
 
+def predictEnsemble(settings):
+    pass
+
 def evaluate(sess, graph, input, start=None, end=None):
     if start is None:
         start = 0
@@ -374,6 +381,7 @@ def main():
     parser.add_argument('--reshuffle', action='store_true', default=False)
     parser.add_argument('--nanToMean', action='store_true', default=False)
     parser.add_argument('--splitExtraLayer', type=int, default=0)
+    parser.add_argument('--ensemblePredict', nargs='+', type=int)
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
@@ -409,13 +417,23 @@ def main():
             pickle.dump(settings, f)
         nn(settings)
     elif args.predict:
-        logging.info('Predicting from run: {}'.format(args.runId))
-        if not os.path.isfile(getSettingsPath(args.runId)):
-            logging.info("Run doesn't exist. Exiting")
-            return
-        with open(getSettingsPath(args.runId), 'rb') as f:
-            settings = pickle.load(f)
-        predict(settings)
+        if len(settings.ensembledPredict) > 0:
+            allSettings = []
+            for run in settings.ensembledPredict:
+                if not os.path.isfile(getSettingsPath(run)):
+                    logging.info("Run doesn't exist. Exiting")
+                    return
+                with open(getSettingsPath(run), 'rb') as f:
+                    allSettings.append(pickle.load(f))
+            predictEnsemble(allSettings)
+        else:
+            logging.info('Predicting from run: {}'.format(args.runId))
+            if not os.path.isfile(getSettingsPath(args.runId)):
+                logging.info("Run doesn't exist. Exiting")
+                return
+            with open(getSettingsPath(args.runId), 'rb') as f:
+                settings = pickle.load(f)
+            predict(settings)
     elif args.aws:
         logging.info('adding training run to aws')
         settings = Settings(args)
