@@ -65,6 +65,7 @@ class Input:
             inputNormFrom = self if fileName == normalizeFrom else Input(normalizeFrom, shuffle=False, settings=settings, ordinalNan=ordinalNan)
             means = inputNormFrom.npOrdinal.mean(axis=0)
             std = inputNormFrom.npOrdinal.std(axis=0)
+            std[std == 0] = 1
             self.npOrdinal = (self.npOrdinal - means) / std
 
     def roll(self, shift):
