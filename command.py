@@ -290,7 +290,8 @@ class Command:
                                      now - w.time, workId)
                         w.state = WorkPieceState.unassigned
 
-            if now - lastWorkScan > 600:
+            if now - lastWorkScan > 300:
+               lastWorkScan = now
                runs = self.awsClient.listObjects(aws.S3BUCKET, 'run')
                for run in runs:
                    key = run['Key']
