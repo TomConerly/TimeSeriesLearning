@@ -209,8 +209,8 @@ class Graph:
             boutput = tf.Variable(tf.constant(0.1, shape=[3]), name="b3")
             self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
 
-        self.mse = tf.reduce_mean(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), name='mse')
-        self.mad = tf.reduce_mean(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent) , name='mad')
+        self.mse = tf.reduce_mean(tf.reduce_sum(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), 1), name='mse')
+        self.mad = tf.reduce_mean(tf.reduce_sum(tf.mul(tf.abs(self.houtput - self.outputs), self.outputsPresent), 1) , name='mad')
 
         regTerm = tf.constant(0.0, shape=[])
         if settings.l1reg > 0.0:
