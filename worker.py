@@ -84,11 +84,11 @@ def main():
 
         h = HeartBeat(cmdClient, workId)
 
-        settings = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, 'run{}.settings'.format(workId)).read())
+        settings = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, '{}{}.settings'.format(command.prefix, workId)).read())
         if settings.resumeRun is not None:
-            name = 'tfmodels/run{}.meta'.format(settings.resumeRun)
+            name = 'tfmodels/{}{}.meta'.format(command.prefix, settings.resumeRun)
             awsClient.downloadFile(aws.S3BUCKET, name, name)
-            name = 'tfmodels/run{}'.format(settings.resumeRun)
+            name = 'tfmodels/{}{}'.format(command.prefix, settings.resumeRun)
             awsClient.downloadFile(aws.S3BUCKET, name, name)
         if myType in ['c3.2xlarge', 'c4.2xlarge']:
             settings.trainingTime /= 2
@@ -101,7 +101,7 @@ def main():
 
         logging.info('Uploading results')
 
-        awsClient.putObject(aws.S3BUCKET, 'run{}.result'.format(workId), pickle.dumps(history))
+        awsClient.putObject(aws.S3BUCKET, '{}{}.result'.format(command.prefix, workId), pickle.dumps(history))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}.meta'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}'.format(workId))
         awsClient.uploadFile(os.path.join('tfmodels', 'run{}best.meta'.format(workId)), aws.S3BUCKET, 'tfmodels/run{}best.meta'.format(workId))

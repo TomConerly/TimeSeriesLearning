@@ -17,6 +17,7 @@ import urllib.parse
 GETWORK = 'GetWork'
 HEARTBEAT = 'HeartBeat'
 FINISHEDWORK = 'FinishedWork'
+prefix = 'goo'
 
 def setupLogging(awsClient):
     logFile = awsClient.getLogFile()
@@ -292,7 +293,7 @@ class Command:
 
             if now - lastWorkScan > 300:
                lastWorkScan = now
-               runs = self.awsClient.listObjects(aws.S3BUCKET, 'run')
+               runs = self.awsClient.listObjects(aws.S3BUCKET, prefix)
                for run in runs:
                    key = run['Key']
                    if key.endswith('settings'):
