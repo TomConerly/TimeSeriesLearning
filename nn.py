@@ -100,6 +100,7 @@ class Settings:
         self.reshuffle = args.reshuffle
         self.nanToMean = args.nanToMean
         self.splitExtraLayer = args.splitExtraLayer
+        self.validateInterval = args.validateInterval
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -338,6 +339,7 @@ def nn(settings, callback=None):
             saver.restore(sess, os.path.join('tfmodels', 'run{}'.format(settings.resumeRun)))
 
         startTime = time.time()
+        lastValidateTime = 0
         at = 0
         step = 0
         bestMSE = 1.0
@@ -359,7 +361,7 @@ def nn(settings, callback=None):
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
             sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
-            if step % (1000000 / settings.batchSize) == 0:
+            if time.time() - lastValidateTime >= settings.validateInterval:
                 summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, learningRate=learningRate)), step)
                 summary_writer.flush()
 
@@ -372,6 +374,7 @@ def nn(settings, callback=None):
                     saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
                 bestMSE = min(bestMSE, validMSE)
                 bestMAD = min(bestMAD, validMAD)
+                lastValidateTime = time.time()
             step += 1
         return history
 
@@ -405,6 +408,7 @@ def main():
     parser.add_argument('--nanToMean', action='store_true', default=False)
     parser.add_argument('--splitExtraLayer', type=int, default=0)
     parser.add_argument('--ensemblePredict', nargs='+', type=int)
+    parser.add_argument('--validateInterval', type=float, default=60, help='')
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
