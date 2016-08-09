@@ -82,11 +82,13 @@ class Input:
 
 class Settings:
     def __init__(self, randomArgs, args):
+        self.runId = args.runId
+        self.stopAfterNoImprovement = args.stopAfterNoImprovement
+        self.trainingTime = args.trainingTime
+        self.validateInterval = args.validateInterval
+
         if randomArgs:
-            self.runId = args.runId
             self.resumeRun = None
-            self.trainingTime = args.trainingTime
-            self.validateInterval = args.validateInterval
             self.trainingPercent = 0.8
             self.validationOffset = 0.8
 
@@ -119,7 +121,6 @@ class Settings:
             self.resumeRun = args.resumeRun
             self.hiddenLayerSizes = args.hiddenLayerSizes
             self.batchSize = args.batchSize
-            self.trainingTime = args.trainingTime
             self.dropout = args.dropout
             self.trainingPercent = args.trainingPercent
             self.normalizeInput = args.normalizeInput
@@ -134,7 +135,6 @@ class Settings:
             self.reshuffle = args.reshuffle
             self.nanToMean = args.nanToMean
             self.splitExtraLayer = args.splitExtraLayer
-            self.validateInterval = args.validateInterval
             self.batchNorm = args.batchNorm
             self.clipNorm = args.clipNorm
 
@@ -406,6 +406,7 @@ def nn(settings, callback=None):
 
         startTime = time.time()
         lastValidateTime = 0
+        lastImprovementTime = time.time()
         at = 0
         step = 0
         bestMSE = 1.0
@@ -438,6 +439,10 @@ def nn(settings, callback=None):
                 saver.save(sess, os.path.join('tfmodels', 'run{}'.format(settings.runId)))
                 if validMAD < bestMAD:
                     saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
+                    lastImprovementTime = time.time()
+                else if time.time() - lastImprovementTime > settings.stopAfterNoImprovement:
+                    break
+
                 bestMSE = min(bestMSE, validMSE)
                 bestMAD = min(bestMAD, validMAD)
                 lastValidateTime = time.time()
@@ -479,6 +484,7 @@ def main():
     parser.add_argument('--batchNorm', action='store_true', default=False)
     parser.add_argument('--clipNorm', type=float, default=0, help='')
     parser.add_argument('--random', action='store_true', default=False)
+    parser.add_argument('--stopAfterNoImprovement', type=float, default=600, help='')
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
