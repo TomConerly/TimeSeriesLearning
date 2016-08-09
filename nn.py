@@ -444,6 +444,7 @@ def nn(settings, callback=None):
                     saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
                     lastImprovementTime = time.time()
                 elif time.time() - lastImprovementTime > settings.stopAfterNoImprovement:
+                    logging.info('Things have not improved recently ending early.')
                     break
 
                 bestMSE = min(bestMSE, validMSE)
