@@ -48,7 +48,7 @@ class Input:
         outputs = outputs.fillna(0)
         outputsPresent = data[["COVAR_y1_MISSING","COVAR_y2_MISSING","COVAR_y3_MISSING"]].astype(int)
 
-        if hasattr(settings, 'nanToMean') and settings.nanToMean:
+        if settings.nanToMean:
             mean = ordinal.mean()
             self.npOrdinal = np.array(ordinal.fillna(mean)).astype(np.float32)
         else:
@@ -215,7 +215,7 @@ class Graph:
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
-        if hasattr(settings, 'splitExtraLayer') and settings.splitExtraLayer > 0:
+        if settings.splitExtraLayer > 0:
             houtputs = []
             for i in range(3):
                 wextra = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], stddev=0.1), name="wextra{}".format(i))
