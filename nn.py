@@ -10,7 +10,7 @@ import random
 import tensorflow as tf
 import time
 
-CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8", "COMBINED_ID", "COMBINED_NOMINAL"]
+CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8", "COMBINED_ID"]
 ORDINAL_COLS = ["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]
 
 StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE', 'step'])
@@ -27,7 +27,6 @@ class Input:
         ordinal = data[ORDINAL_COLS]
 
         data['COMBINED_ID'] = data.STUDYID.astype(str).str.cat([data.SITEID.astype(str), data.COUNTRY.astype(str)], sep=',')
-        data['COMBINED_NOMINAL'] = data.COVAR_NOMINAL_1.astype(str).str.cat([data.COVAR_NOMINAL_2.astype(str), data.COVAR_NOMINAL_3.astype(str), data.COVAR_NOMINAL_4.astype(str), data.COVAR_NOMINAL_5.astype(str), data.COVAR_NOMINAL_6.astype(str), data.COVAR_NOMINAL_6.astype(str), data.COVAR_NOMINAL_8.astype(str)], sep=',')
 
         oneHotColumns = []
         embeddingColumns = []
@@ -96,52 +95,37 @@ class Settings:
             self.trainingPercent = 0.8
             self.validationOffset = 0.8
 
-            numHiddenLayers = random.randint(1, 6)
-            self.hiddenLayerSizes = [random.choice([10, 20, 30, 40, 60, 80, 100, 140, 180]) for i in range(numHiddenLayers)]
-            self.batchSize = random.choice([64, 96, 128, 192, 256, 384, 512])
+            numHiddenLayers = random.randint(2, 8)
+            self.hiddenLayerSizes = [random.choice([30, 40, 60, 80, 100, 140, 180, 220, 260]) for i in range(numHiddenLayers)]
+            self.batchSize = random.choice([96, 128, 192, 256, 384, 512])
             self.dropout = 1
-            self.normalizeInput = random.choice([False, True])
+            self.normalizeInput = random.random() < 0.9
             self.ordinalNan = random.choice([False, True])
             self.learningRate0 = random.expovariate(1/.001)
             self.learningRate1 = random.expovariate(1/.0001)
             self.learningRatet = random.choice([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7])
-            self.l1reg = random.choice([0, random.expovariate(1/0.2)])
+            self.l1reg = random.choice([0, 0, 0, random.expovariate(1/0.05)])
             self.l2reg = random.choice([0, random.expovariate(1)])
             self.activation = 'relu'
-            self.reshuffle = random.choice([False, True, True])
-            self.nanToMean = random.choice([False, True])
-            self.splitExtraLayer = random.choice([False, True])
-            self.batchNorm = random.choice([False, True])
-            self.clipNorm = random.choice([0, random.expovariate(1/.1), random.expovariate(1/.1), random.expovariate(1/.1)])
+            self.reshuffle = random.random() < 0.9
+            self.nanToMean = random.random() < 0.9
+            self.splitExtraLayer = random.random() < 0.1
+            self.batchNorm = random.random() < 0.1
+            self.clipNorm = random.choice([0, random.expovariate(1/.05), random.expovariate(1/.05), random.expovariate(1/.05)])
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':
-                    setattr(self, col, random.randint(5, 25))
+                    setattr(self, col, random.randint(5, 35))
                 else:
                     setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
-            useCombinedId = random.choice([False, True])
-            if usedCombinedId:
+            useCombined = random.choice([False, True])
+            if usedCombined:
                 setattr(self, 'STUDYID', 0)
                 setattr(self, 'COUNTRYID', 0)
                 setattr(self, 'SITEID', 0)
-                setattr(self, 'COMBINED_ID', random.choice([-1, -1, random.randint(5, 25)]))
+                setattr(self, 'COMBINED_ID', -1)
             else:
                 setattr(self, 'COMBINED_ID', 0)
-
-            useCombinedNominal = random.choice([False, False, False, True])
-            if usedCombinedNominal:
-                setattr(self, 'COVAR_NOMINAL_1', 0)
-                setattr(self, 'COVAR_NOMINAL_2', 0)
-                setattr(self, 'COVAR_NOMINAL_3', 0)
-                setattr(self, 'COVAR_NOMINAL_4', 0)
-                setattr(self, 'COVAR_NOMINAL_5', 0)
-                setattr(self, 'COVAR_NOMINAL_6', 0)
-                setattr(self, 'COVAR_NOMINAL_7', 0)
-                setattr(self, 'COVAR_NOMINAL_8', 0)
-                setattr(self, 'COMBINED_NOMINAL', random.choice([-1, random.randint(5, 25)]))
-            else:
-                setattr(self, 'COMBINED_NOMINAL', 0)
-
 
         else:
             self.runId = args.runId
@@ -517,7 +501,7 @@ def main():
     parser.add_argument('--random', action='store_true', default=False)
     parser.add_argument('--stopAfterNoImprovement', type=float, default=600, help='')
     for col in CATEGORICAL_COLS:
-        if col == 'COMBINED_ID' or col == 'COMBINED_NOMINAL':
+        if col == 'COMBINED_ID':
             parser.add_argument('--{}'.format(col), type=int, default=0, help='')
         else:
             parser.add_argument('--{}'.format(col), type=int, default=-1, help='')

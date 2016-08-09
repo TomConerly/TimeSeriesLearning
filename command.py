@@ -17,7 +17,7 @@ import urllib.parse
 GETWORK = 'GetWork'
 HEARTBEAT = 'HeartBeat'
 FINISHEDWORK = 'FinishedWork'
-prefix = 'goa'
+prefix = 'gob'
 
 def setupLogging(awsClient):
     logFile = awsClient.getLogFile()
