@@ -119,7 +119,7 @@ class Settings:
                 else:
                     setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
             useCombined = random.choice([False, True])
-            if usedCombined:
+            if useCombined:
                 setattr(self, 'STUDYID', 0)
                 setattr(self, 'COUNTRYID', 0)
                 setattr(self, 'SITEID', 0)
