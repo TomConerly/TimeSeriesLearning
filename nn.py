@@ -102,6 +102,7 @@ class Settings:
         self.splitExtraLayer = args.splitExtraLayer
         self.validateInterval = args.validateInterval
         self.batchNorm = args.batchNorm
+        self.clipNorm = args.clipNorm
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -135,7 +136,7 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
 
 def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
     if not useBatchNorm:
@@ -260,11 +261,14 @@ class Graph:
                 l2regTerm += int(shape.dims[0]) * int(shape.dims[1]) * tf.reduce_mean(tf.square(w))
             regTerm += l2regTerm * settings.l2reg / totalTerms
 
-        self.train_step = tf.train.AdamOptimizer(learning_rate=self.learningRate).minimize(self.mad + regTerm)
-
-        self.gradients = tf.gradients(self.mad, tf.trainable_variables())
-        for g, v in zip(self.gradients, tf.trainable_variables()):
-            tf.histogram_summary(v.name, g)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learningRate)
+        self.gradients = optimizer.compute_gradients(self.mad + regTerm)
+        if settings.clipNorm > 0:
+            for i, (grad, var) in enumerate(self.gradients):
+                clippedGradient = tf.clip_by_norm(grad, settings.clipNorm)
+                self.gradients[i] = (clippedGradient, var)
+                tf.histogram_summary(var.name, clippedGradient)
+        self.trainStep = optimizer.apply_gradients(self.gradients)
         self.summary_op = tf.merge_all_summaries()
 
         logging.info('Done building graph')
@@ -387,7 +391,7 @@ def nn(settings, callback=None):
             else:
                 alpha = step / settings.learningRatet
                 learningRate = (1 - alpha) * settings.learningRate0 + alpha * settings.learningRate1
-            sess.run(graph.train_step, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
+            sess.run(graph.trainStep, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, keep_prob=settings.dropout, learningRate=learningRate))
 
             if time.time() - lastValidateTime >= settings.validateInterval:
                 summary_writer.add_summary(sess.run(graph.summary_op, feed_dict=makeFeedDict(graph, trainInput, start=start, end=end, learningRate=learningRate)), step)
@@ -438,6 +442,7 @@ def main():
     parser.add_argument('--ensemblePredict', nargs='+', type=int)
     parser.add_argument('--validateInterval', type=float, default=60, help='')
     parser.add_argument('--batchNorm', action='store_true', default=False)
+    parser.add_argument('--clipNorm', type=float, default=0, help='')
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
