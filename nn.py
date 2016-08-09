@@ -65,6 +65,7 @@ class Input:
         self.npOutputs = np.array(outputs).astype(np.float32)
         self.npOutputsPresent = np.ones(outputsPresent.shape) - np.array(outputsPresent).astype(np.float32)
         self.npOutputsPresent = self.npOutputsPresent / self.npOutputsPresent.sum(axis=1, keepdims=True)
+        self.npOutputAverage = np.array(outputs.mean(axis=0, skipna=True)).astype(np.float32)
 
         if shuffle:
             shuffleParallel([self.npOrdinal, self.npCategoricalOneHot, self.npCategoricalEmbedding, self.npOutputs, self.npOutputsPresent])
@@ -112,6 +113,7 @@ class Settings:
             self.splitExtraLayer = random.random() < 0.1
             self.batchNorm = random.random() < 0.1
             self.clipNorm = random.choice([0, random.expovariate(1/.05), random.expovariate(1/.05), random.expovariate(1/.05)])
+            self.outputBias = random.choice([False, True])
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':
@@ -148,6 +150,7 @@ class Settings:
             self.splitExtraLayer = args.splitExtraLayer
             self.batchNorm = args.batchNorm
             self.clipNorm = args.clipNorm
+            self.outputBias = args.outputBias
 
             for col in CATEGORICAL_COLS:
                 setattr(self, col, getattr(args, col))
@@ -181,7 +184,7 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}, OB: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg, self.outputBias)
 
 def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
     if not useBatchNorm:
@@ -203,7 +206,7 @@ def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
         return tf.nn.batch_normalization(inputTensor, pop_mean, pop_var, beta, scale, epsilon)
 
 class Graph:
-    def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes, isTraining):
+    def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes, outputAverages, isTraining):
         tf.reset_default_graph()
         logging.info('Building graph')
         self.keep_prob = tf.placeholder(tf.float32, name='dropoutRate')
@@ -277,14 +280,14 @@ class Graph:
 
                 woutput = tf.Variable(tf.truncated_normal([settings.splitExtraLayer, 1], stddev=0.1), name="woutput{}".format(i))
                 weightsToReg.append(woutput)
-                boutput = tf.Variable(tf.constant(0.1, shape=[1]), name="boutput{}".format(i))
+                boutput = tf.Variable(tf.constant(outputAverages[i] if settings.outputBias else 0.1, shape=[1]), name="boutput{}".format(i))
                 houtputs.append(tf.matmul(zextra, woutput) + boutput)
 
             self.houtput = tf.concat(1, houtputs)
         else:
             woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
             weightsToReg.append(woutput)
-            boutput = tf.Variable(tf.constant(0.1, shape=[3]), name="b3")
+            boutput = tf.Variable(tf.constant(outputAverages if settings.outputBias else 0.1, shape=[3]), name="b3")
             self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
 
         self.mse = tf.reduce_mean(tf.reduce_sum(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), 1), name='mse')
@@ -335,7 +338,7 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate
 def predict(settings):
     logging.info('Predicting')
     testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
-    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, isTraining=False)
+    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, testInput.npOutputAverage, isTraining=False)
 
     with tf.Session() as sess:
         saver = tf.train.Saver()
@@ -359,7 +362,7 @@ def predictEnsemble(settingsList):
     predictions = []
     for settings in settingsList:
         testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
-        graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, isTraining=False)
+        graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, testInput.npOutputAverage, isTraining=False)
 
         with tf.Session() as sess:
             saver = tf.train.Saver()
@@ -405,7 +408,7 @@ def nn(settings, callback=None):
     validationStart = int(trainInput.npOutputs.shape[0] * settings.validationOffset)
     trainInput.roll(trainingSize - validationStart)
 
-    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes, isTraining=True)
+    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes, trainInput.npOutputAverage, isTraining=True)
 
     saver = tf.train.Saver()
     logging.info('Starting training')
@@ -500,6 +503,7 @@ def main():
     parser.add_argument('--clipNorm', type=float, default=0, help='')
     parser.add_argument('--random', action='store_true', default=False)
     parser.add_argument('--stopAfterNoImprovement', type=float, default=600, help='')
+    parser.add_argument('--outputBias', action='store_true', default=False)
     for col in CATEGORICAL_COLS:
         if col == 'COMBINED_ID':
             parser.add_argument('--{}'.format(col), type=int, default=0, help='')
