@@ -195,7 +195,7 @@ class RealAWSClient:
 
     def terminateSelf(self):
         try:
-            self.ec2.terminate_instances(InstanceIds=[getInstanceId()])
+            self.ec2.terminate_instances(InstanceIds=[self.getInstanceId()])
             return True
         except:
             logging.error('terminate_instances failed', exc_info=True)
