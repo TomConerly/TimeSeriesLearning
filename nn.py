@@ -440,7 +440,7 @@ def nn(settings, callback=None):
                 if validMAD < bestMAD:
                     saver.save(sess, os.path.join('tfmodels', 'run{}best'.format(settings.runId)))
                     lastImprovementTime = time.time()
-                else if time.time() - lastImprovementTime > settings.stopAfterNoImprovement:
+                elif time.time() - lastImprovementTime > settings.stopAfterNoImprovement:
                     break
 
                 bestMSE = min(bestMSE, validMSE)
@@ -543,16 +543,16 @@ def main():
         settings = Settings(args.random, args)
 
         awsClient = aws.RealAWSClient()
-        if not args.override and len(awsClient.listObjects(aws.S3BUCKET, 'run{}.settings'.format(settings.runId))) > 0:
+        if not args.override and len(awsClient.listObjects(aws.S3BUCKET, '{}{}.settings'.format(command.prefix, settings.runId))) > 0:
             logging.info('run already exists, exiting')
             return
         if settings.resumeRun is not None:
             logging.info('Resuming from run: {}'.format(args.resumeRun))
-            prevSettings = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, 'run{}.settings'.format(settings.resumeRun)).read())
+            prevSettings = pickle.loads(awsClient.getObjectBody(aws.S3BUCKET, '{}{}.settings'.format(command.prefix, settings.resumeRun)).read())
             if not settings.compatible(prevSettings):
                 logging.info("Settings aren't compatible with previous settings. Exiting")
                 return
-        awsClient.putObject(aws.S3BUCKET, 'run{}.settings'.format(settings.runId), pickle.dumps(settings))
+        awsClient.putObject(aws.S3BUCKET, '{}{}.settings'.format(command.prefix, settings.runId), pickle.dumps(settings))
     else:
         logging.info('doing nothing')
 
