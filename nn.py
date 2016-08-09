@@ -101,6 +101,7 @@ class Settings:
         self.nanToMean = args.nanToMean
         self.splitExtraLayer = args.splitExtraLayer
         self.validateInterval = args.validateInterval
+        self.batchNorm = args.batchNorm
 
         for col in CATEGORICAL_COLS:
             setattr(self, col, getattr(args, col))
@@ -118,6 +119,9 @@ class Settings:
         if self.activation != s.activation:
             logging.info('Activation function incompatible')
             return False
+        if self.batchNorm != s.batchNorm:
+            logging.info('Batch norm imcompatible')
+            return False
         for col in CATEGORICAL_COLS:
             if getattr(self, col) != getattr(s, col):
                 logging.info('Categorical column {} incompatible'.format(col))
@@ -131,10 +135,29 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
+
+def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
+    if not useBatchNorm:
+        return inputTensor
+
+    scale = tf.Variable(tf.ones([inputTensor.get_shape()[-1]]))
+    beta = tf.Variable(tf.zeros([inputTensor.get_shape()[-1]]))
+    pop_mean = tf.Variable(tf.zeros([inputTensor.get_shape()[-1]]), trainable=False)
+    pop_var = tf.Variable(tf.ones([inputTensor.get_shape()[-1]]), trainable=False)
+    epsilon = 1e-3
+
+    if isTraining:
+        batch_mean, batch_var = tf.nn.moments(inputTensor, [0])
+        train_mean = tf.assign(pop_mean, pop_mean * decay + batch_mean * (1 - decay))
+        train_var = tf.assign(pop_var, pop_var * decay + batch_var * (1 - decay))
+        with tf.control_dependencies([train_mean, train_var]):
+            return tf.nn.batch_normalization(inputTensor, batch_mean, batch_var, beta, scale, epsilon)
+    else:
+        return tf.nn.batch_normalization(inputTensor, pop_mean, pop_var, beta, scale, epsilon)
 
 class Graph:
-    def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes):
+    def __init__(self, settings, ordinalInputSize, categoricalOneHotInputSize, categoricalFeatureEmbedSizes, isTraining):
         tf.reset_default_graph()
         logging.info('Building graph')
         self.keep_prob = tf.placeholder(tf.float32, name='dropoutRate')
@@ -147,8 +170,7 @@ class Graph:
         weightsToReg = []
         w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1ordinal")
         weightsToReg.append(w11)
-        b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
-        h1 = tf.matmul(self.ordinalInputs, w11) + b1
+        h1 = tf.matmul(self.ordinalInputs, w11)
         if categoricalOneHotInputSize > 0:
             w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
             weightsToReg.append(w12)
@@ -163,6 +185,9 @@ class Graph:
             firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
             h1 += tf.matmul(embedOutput, firstLayerWeights)
             self.categoricalFeatureEmbedInputs.append(embedInput)
+        if not settings.batchNorm:
+            b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
+            h1 += b1
 
         if settings.activation == 'relu':
             activation = tf.nn.relu
@@ -173,16 +198,19 @@ class Graph:
         else:
             logging.error('Unknown activation {}'.format(settings.activation))
             activation = tf.nn.relu
-        z1 = activation(h1, name="z1")
+        z1 = activation(batchNorm(h1, settings.batchNorm, isTraining), name="z1")
         z1drop = tf.nn.dropout(z1, self.keep_prob, name="z1drop")
 
         zdrops = [z1drop]
         for i in range(1, len(settings.hiddenLayerSizes)):
             w = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], stddev=0.1), name="w{}".format(i+1))
             weightsToReg.append(w)
-            b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
-            h = tf.matmul(zdrops[-1], w) + b
-            z = activation(h, name="z{}".format(i+1))
+            if not settings.batchNorm:
+                b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
+                h = tf.matmul(zdrops[-1], w) + b
+            else:
+                h = tf.matmul(zdrops[-1], w)
+            z = activation(batchNorm(h, settings.batchNorm, isTraining), name="z{}".format(i+1))
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
@@ -191,8 +219,12 @@ class Graph:
             for i in range(3):
                 wextra = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], stddev=0.1), name="wextra{}".format(i))
                 weightsToReg.append(wextra)
-                bextra = tf.Variable(tf.constant(0.1, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
-                zextra = activation(tf.matmul(zdrops[-1], wextra) + bextra)
+                if not settings.batchNorm:
+                    bextra = tf.Variable(tf.constant(0.1, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
+                    hextra = tf.matmul(zdrops[-1], wextra) + bExtra
+                else:
+                    hextra = tf.matmul(zdrops[-1], wextra)
+                zextra = activation(batchNorm(hextra, settings.batchNorm, isTraining))
 
                 woutput = tf.Variable(tf.truncated_normal([settings.splitExtraLayer, 1], stddev=0.1), name="woutput{}".format(i))
                 weightsToReg.append(woutput)
@@ -251,7 +283,7 @@ def makeFeedDict(graph, input, start=None, end=None, keep_prob=1.0, learningRate
 def predict(settings):
     logging.info('Predicting')
     testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
-    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
+    graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, isTraining=False)
 
     with tf.Session() as sess:
         saver = tf.train.Saver()
@@ -275,7 +307,7 @@ def predictEnsemble(settingsList):
     predictions = []
     for settings in settingsList:
         testInput = Input('testData.csv', shuffle=False, settings=settings, normalizeFrom='training.csv' if settings.normalizeInput else None, ordinalNan=settings.ordinalNan)
-        graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes)
+        graph = Graph(settings, testInput.npOrdinal.shape[1], testInput.npCategoricalOneHot.shape[1], testInput.categoricalFeatureEmbedSizes, isTraining=False)
 
         with tf.Session() as sess:
             saver = tf.train.Saver()
@@ -321,7 +353,7 @@ def nn(settings, callback=None):
     validationStart = int(trainInput.npOutputs.shape[0] * settings.validationOffset)
     trainInput.roll(trainingSize - validationStart)
 
-    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes)
+    graph = Graph(settings, trainInput.npOrdinal.shape[1], trainInput.npCategoricalOneHot.shape[1], trainInput.categoricalFeatureEmbedSizes, isTraining=True)
 
     saver = tf.train.Saver()
     logging.info('Starting training')
@@ -405,6 +437,7 @@ def main():
     parser.add_argument('--splitExtraLayer', type=int, default=0)
     parser.add_argument('--ensemblePredict', nargs='+', type=int)
     parser.add_argument('--validateInterval', type=float, default=60, help='')
+    parser.add_argument('--batchNorm', action='store_true', default=False)
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
