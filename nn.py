@@ -10,7 +10,8 @@ import random
 import tensorflow as tf
 import time
 
-CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8"]
+CATEGORICAL_COLS = ["SUBJID","STUDYID","SITEID","COUNTRY","COVAR_NOMINAL_1","COVAR_NOMINAL_2","COVAR_NOMINAL_3","COVAR_NOMINAL_4","COVAR_NOMINAL_5","COVAR_NOMINAL_6","COVAR_NOMINAL_7","COVAR_NOMINAL_8", "COMBINED_ID"]
+ORDINAL_COLS = ["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]
 
 StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE', 'step'])
 
@@ -23,7 +24,9 @@ class Input:
     def __init__(self, fileName, shuffle, settings, normalizeFrom=None, ordinalNan=False):
         logging.info('Loading input {}'.format(fileName))
         data = pd.read_csv(fileName)
-        ordinal = data[["TIMEVAR1","TIMEVAR2","COVAR_CONTINUOUS_1","COVAR_CONTINUOUS_2","COVAR_CONTINUOUS_3","COVAR_CONTINUOUS_4","COVAR_CONTINUOUS_5","COVAR_CONTINUOUS_6","COVAR_CONTINUOUS_7","COVAR_CONTINUOUS_8","COVAR_CONTINUOUS_9","COVAR_CONTINUOUS_10","COVAR_CONTINUOUS_11","COVAR_CONTINUOUS_12","COVAR_CONTINUOUS_13","COVAR_CONTINUOUS_14","COVAR_CONTINUOUS_15","COVAR_CONTINUOUS_16","COVAR_CONTINUOUS_17","COVAR_CONTINUOUS_18","COVAR_CONTINUOUS_19","COVAR_CONTINUOUS_20","COVAR_CONTINUOUS_21","COVAR_CONTINUOUS_22","COVAR_CONTINUOUS_23","COVAR_CONTINUOUS_24","COVAR_CONTINUOUS_25","COVAR_CONTINUOUS_26","COVAR_CONTINUOUS_27","COVAR_CONTINUOUS_28","COVAR_CONTINUOUS_29","COVAR_CONTINUOUS_30","COVAR_ORDINAL_1","COVAR_ORDINAL_2","COVAR_ORDINAL_3","COVAR_ORDINAL_4","COVAR_ORDINAL_5","COVAR_ORDINAL_6","COVAR_ORDINAL_7","COVAR_ORDINAL_8"]]
+        ordinal = data[ORDINAL_COLS]
+
+        data['COMBINED_ID'] = data.STUDYID.astype(str).str.cat([data.SITEID.astype(str), data.COUNTRY.astype(str)], sep=',')
 
         oneHotColumns = []
         embeddingColumns = []
@@ -115,6 +118,14 @@ class Settings:
                     setattr(self, col, random.randint(5, 25))
                 else:
                     setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
+            useCombined = random.choice([False, True])
+            if usedCombined:
+                setattr(self, 'STUDYID', 0)
+                setattr(self, 'COUNTRYID', 0)
+                setattr(self, 'SITEID', 0)
+                setattr(self, 'COMBINED_ID', -1)
+            else:
+                setattr(self, 'COMBINED_ID', 0)
 
         else:
             self.runId = args.runId
@@ -490,7 +501,10 @@ def main():
     parser.add_argument('--random', action='store_true', default=False)
     parser.add_argument('--stopAfterNoImprovement', type=float, default=600, help='')
     for col in CATEGORICAL_COLS:
-        parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
+        if col == 'COMBINED_ID':
+            parser.add_argument('--{}'.format(col), type=int, default=0, help='')
+        else:
+            parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
     args = parser.parse_args()
 

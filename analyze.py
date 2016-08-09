@@ -1,5 +1,5 @@
-import matplotlib
-import matplotlib.pyplot
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 train = pd.read_csv('training.csv')
@@ -7,7 +7,7 @@ test = pd.read_csv('testData.csv')
 
 cols = train.columns
 
-printTopN = True
+printTopN = False
 printMissingProb = False
 printTimes = False
 
@@ -42,10 +42,10 @@ def timeMap(data):
             times[key].append(value)
     return times
 
-trainTimes = timeMap(train)
-testTimes = timeMap(test)
-
 if printTimes:
+    trainTimes = timeMap(train)
+    testTimes = timeMap(test)
+
     x = []
     y = []
     freq = {}
@@ -66,5 +66,16 @@ if printTimes:
         accum += v / len(x)
         print(k, v / len(x), accum)
 
-#matplotlib.pyplot.hist2d(x, y, bins=[15, 10], range=[[0, 15], [0, 10]])
-#matplotlib.pyplot.show()
+def numUniques(l):
+    return len(set(l))
+
+x = np.array(train['STUDYID'])
+y = np.array(train['SITEID'])
+z = np.array(train['COUNTRY'])
+print('study', numUniques(x))
+print('site', numUniques(y))
+print('country', numUniques(z))
+print('study/site', numUniques(zip(x, y)))
+print('study/country', numUniques(zip(x, z)))
+print('site/country', numUniques(zip(y, z)))
+print('study/site/country', numUniques(zip(x, y, z)))
