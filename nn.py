@@ -94,21 +94,21 @@ class Settings:
 
             numHiddenLayers = random.randint(1, 6)
             self.hiddenLayerSizes = [random.choice([10, 20, 30, 40, 60, 80, 100, 140, 180]) for i in range(numHiddenLayers)]
-            self.batchSize = random.choice([1, 2, 4, 8, 16, 32, 64, 128, 256])
-            self.dropout = random.choice([1, 1, 1, random.uniform(0.3, 0.9)])
+            self.batchSize = random.choice([64, 96, 128, 192, 256, 384, 512])
+            self.dropout = 1
             self.normalizeInput = random.choice([False, True])
             self.ordinalNan = random.choice([False, True])
             self.learningRate0 = random.expovariate(1/.001)
             self.learningRate1 = random.expovariate(1/.0001)
             self.learningRatet = random.choice([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7])
-            self.l1reg = random.choice([0, random.expovariate(1)])
+            self.l1reg = random.choice([0, random.expovariate(1/0.2)])
             self.l2reg = random.choice([0, random.expovariate(1)])
-            self.activation = random.choice(['relu', 'relu', 'relu', 'sigmoid', 'tanh'])
+            self.activation = 'relu'
             self.reshuffle = random.choice([False, True, True])
             self.nanToMean = random.choice([False, True])
             self.splitExtraLayer = random.choice([False, True])
             self.batchNorm = random.choice([False, True])
-            self.clipNorm = random.choice([0, random.expovariate(1/.1)])
+            self.clipNorm = random.choice([0, random.expovariate(1/.1), random.expovariate(1/.1), random.expovariate(1/.1)])
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':

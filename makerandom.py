@@ -6,7 +6,7 @@ import pickle
 
 Args = collections.namedtuple('Args', ['runId', 'trainingTime', 'validateInterval', 'stopAfterNoImprovement'])
 
-for i in range(100):
+for i in range(200):
     args = Args(runId=i, trainingTime=30*60, validateInterval=120, stopAfterNoImprovement=400)
     settings = nn.Settings(True, args)
 
