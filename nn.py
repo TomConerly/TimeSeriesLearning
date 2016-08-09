@@ -6,6 +6,7 @@ import numpy as np
 import os
 import pandas as pd
 import pickle
+import random
 import tensorflow as tf
 import time
 
@@ -80,32 +81,65 @@ class Input:
         self.npOutputsPresent = np.roll(self.npOutputsPresent, shift, axis=0)
 
 class Settings:
-    def __init__(self, args):
-        self.runId = args.runId
-        self.resumeRun = args.resumeRun
-        self.hiddenLayerSizes = args.hiddenLayerSizes
-        self.batchSize = args.batchSize
-        self.trainingTime = args.trainingTime
-        self.dropout = args.dropout
-        self.trainingPercent = args.trainingPercent
-        self.normalizeInput = args.normalizeInput
-        self.validationOffset = args.validationOffset
-        self.ordinalNan = args.ordinalNan
-        self.learningRate0 = args.learningRate0
-        self.learningRate1 = args.learningRate1
-        self.learningRatet = args.learningRatet
-        self.l1reg = args.l1reg
-        self.l2reg = args.l2reg
-        self.activation = args.activation
-        self.reshuffle = args.reshuffle
-        self.nanToMean = args.nanToMean
-        self.splitExtraLayer = args.splitExtraLayer
-        self.validateInterval = args.validateInterval
-        self.batchNorm = args.batchNorm
-        self.clipNorm = args.clipNorm
+    def __init__(self, randomArgs, args):
+        if randomArgs:
+            self.runId = args.runId
+            self.resumeRun = None
+            self.trainingTime = args.trainingTime
+            self.validateInterval = args.validateInterval
+            self.trainingPercent = 0.8
+            self.validationOffset = 0.8
 
-        for col in CATEGORICAL_COLS:
-            setattr(self, col, getattr(args, col))
+            numHiddenLayers = random.randint(1, 6)
+            self.hiddenLayerSizes = [random.choice([10, 20, 30, 40, 60, 80, 100, 140, 180]) for i in range(numHiddenLayers)]
+            self.batchSize = random.choice([1, 2, 4, 8, 16, 32, 64, 128, 256])
+            self.dropout = random.choice([1, random.uniform(0.3, 0.9)])
+            self.normalizeInput = random.choice([False, True])
+            self.ordinalNan = random.choice([False, True])
+            self.learningRate0 = random.expovariate(1/.001)
+            self.learningRate1 = random.expovariate(1/.0001)
+            self.learningRatet = random.choice([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7])
+            self.l1reg = random.choice([0, random.expovariate(1)])
+            self.l2reg = random.choice([0, random.expovariate(1)])
+            self.activation = random.choice(['relu', 'sigmoid', 'tanh'])
+            self.reshuffle = random.choice([False, True])
+            self.nanToMean = random.choice([False, True])
+            self.splitExtraLayer = random.choice([False, True])
+            self.batchNorm = random.choice([False, True])
+            self.clipNorm = random.choice([0, random.expovariate(1/.1)])
+
+            for col in CATEGORICAL_COLS:
+                if col == 'SUBJID':
+                    setattr(self, col, random.randint(5, 25))
+                else:
+                    setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
+
+        else:
+            self.runId = args.runId
+            self.resumeRun = args.resumeRun
+            self.hiddenLayerSizes = args.hiddenLayerSizes
+            self.batchSize = args.batchSize
+            self.trainingTime = args.trainingTime
+            self.dropout = args.dropout
+            self.trainingPercent = args.trainingPercent
+            self.normalizeInput = args.normalizeInput
+            self.validationOffset = args.validationOffset
+            self.ordinalNan = args.ordinalNan
+            self.learningRate0 = args.learningRate0
+            self.learningRate1 = args.learningRate1
+            self.learningRatet = args.learningRatet
+            self.l1reg = args.l1reg
+            self.l2reg = args.l2reg
+            self.activation = args.activation
+            self.reshuffle = args.reshuffle
+            self.nanToMean = args.nanToMean
+            self.splitExtraLayer = args.splitExtraLayer
+            self.validateInterval = args.validateInterval
+            self.batchNorm = args.batchNorm
+            self.clipNorm = args.clipNorm
+
+            for col in CATEGORICAL_COLS:
+                setattr(self, col, getattr(args, col))
 
     def compatible(self, s):
         if self.hiddenLayerSizes != s.hiddenLayerSizes:
@@ -263,11 +297,11 @@ class Graph:
 
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learningRate)
         self.gradients = optimizer.compute_gradients(self.mad + regTerm)
-        if settings.clipNorm > 0:
-            for i, (grad, var) in enumerate(self.gradients):
-                clippedGradient = tf.clip_by_norm(grad, settings.clipNorm)
-                self.gradients[i] = (clippedGradient, var)
-                tf.histogram_summary(var.name, clippedGradient)
+        for i, (grad, var) in enumerate(self.gradients):
+            if settings.clipNorm > 0:
+                grad = tf.clip_by_norm(grad, settings.clipNorm)
+            self.gradients[i] = (grad, var)
+            tf.histogram_summary(var.name, grad)
         self.trainStep = optimizer.apply_gradients(self.gradients)
         self.summary_op = tf.merge_all_summaries()
 
@@ -414,6 +448,7 @@ def getSettingsPath(runId):
     return os.path.join('tfmodels', 'run{}.settings'.format(runId))
 
 def main():
+    random.seed(0)
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     parser = argparse.ArgumentParser(description='ML fun')
     parser.add_argument('--runId', type=int, help='id of the run')
@@ -443,6 +478,7 @@ def main():
     parser.add_argument('--validateInterval', type=float, default=60, help='')
     parser.add_argument('--batchNorm', action='store_true', default=False)
     parser.add_argument('--clipNorm', type=float, default=0, help='')
+    parser.add_argument('--random', action='store_true', default=False)
     for col in CATEGORICAL_COLS:
         parser.add_argument('--{}'.format(col), type=int, default=-1, help='')
 
@@ -450,8 +486,9 @@ def main():
 
     if args.train:
         logging.info('training')
-        settings = Settings(args)
-        logging.info('settings: {}', settings.__dict__)
+        settings = Settings(args.random, args)
+
+        logging.info('settings: {}'.format(settings))
         if os.path.isfile(getSettingsPath(args.runId)):
             if args.override:
                 os.remove(getSettingsPath(args.runId))
@@ -497,7 +534,8 @@ def main():
             predict(settings)
     elif args.aws:
         logging.info('adding training run to aws')
-        settings = Settings(args)
+        settings = Settings(args.random, args)
+
         awsClient = aws.RealAWSClient()
         if not args.override and len(awsClient.listObjects(aws.S3BUCKET, 'run{}.settings'.format(settings.runId))) > 0:
             logging.info('run already exists, exiting')
