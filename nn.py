@@ -234,6 +234,7 @@ class Graph:
             logging.error('Unknown activation {}'.format(settings.activation))
             activation = tf.nn.relu
         z1 = activation(batchNorm(h1, settings.batchNorm, isTraining), name="z1")
+        tf.histogram_summary("act1", z1)
         z1drop = tf.nn.dropout(z1, self.keep_prob, name="z1drop")
 
         zdrops = [z1drop]
@@ -246,6 +247,7 @@ class Graph:
             else:
                 h = tf.matmul(zdrops[-1], w)
             z = activation(batchNorm(h, settings.batchNorm, isTraining), name="z{}".format(i+1))
+            tf.histogram_summary("act{}".format(i+1), z)
             zdrop = tf.nn.dropout(z, self.keep_prob, name="zdrop{}".format(i+1))
             zdrops.append(zdrop)
 
@@ -260,6 +262,7 @@ class Graph:
                 else:
                     hextra = tf.matmul(zdrops[-1], wextra)
                 zextra = activation(batchNorm(hextra, settings.batchNorm, isTraining))
+                tf.histogram_summary("actlast{}".format(i), zextra)
 
                 woutput = tf.Variable(tf.truncated_normal([settings.splitExtraLayer, 1], stddev=0.1), name="woutput{}".format(i))
                 weightsToReg.append(woutput)
