@@ -129,6 +129,12 @@ class Settings:
             else:
                 setattr(self, 'COMBINED_ID', 0)
 
+            self.initialBias = random.expovariate(1/0.1)
+            if random.choice([False, True]):
+                self.weightMax = -random.expovariate(1/0.1)
+            else:
+                self.weightMax = random.expovariate(1/0.1)
+
         else:
             self.runId = args.runId
             self.resumeRun = args.resumeRun
@@ -151,6 +157,8 @@ class Settings:
             self.batchNorm = args.batchNorm
             self.clipNorm = args.clipNorm
             self.outputBias = args.outputBias
+            self.initialBias = args.initialBias
+            self.weightMax = args.weightMax
 
             for col in CATEGORICAL_COLS:
                 setattr(self, col, getattr(args, col))
@@ -184,7 +192,7 @@ class Settings:
             if col.startswith('COVAR_NOMINAL_'):
                 name = 'cvn' + col[-1]
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}, OB: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg, self.outputBias)
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}, IB: {:.5f}, WM: {:.5f}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}, OB: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.initialBias, self.weightMax, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg, self.outputBias)
 
 def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
     if not useBatchNorm:
@@ -216,26 +224,32 @@ class Graph:
         self.outputsPresent = tf.placeholder(tf.float32, [None, 3], name='outputsPresent')
         self.learningRate = tf.placeholder(tf.float32, [], name='learningRate')
 
+        def weightInit(shape, weightMax):
+            if settings.weightMax < 0:
+                return tf.truncated_normal(shape, stddev=weightMax)
+            else:
+                return tf.random_uniform(shape, minval=-weightMax, maxval=weightMax)
+
         weightsToReg = []
-        w11 = tf.Variable(tf.truncated_normal([ordinalInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1ordinal")
+        w11 = tf.Variable(weightInit([ordinalInputSize, settings.hiddenLayerSizes[0]], settings.weightMax), name="w1ordinal")
         weightsToReg.append(w11)
         h1 = tf.matmul(self.ordinalInputs, w11)
         if categoricalOneHotInputSize > 0:
-            w12 = tf.Variable(tf.truncated_normal([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="w1categoricalOneHot")
+            w12 = tf.Variable(weightInit([categoricalOneHotInputSize, settings.hiddenLayerSizes[0]], settings.weightMax), name="w1categoricalOneHot")
             weightsToReg.append(w12)
             h1 += tf.matmul(self.categoricalOneHotInputs, w12)
 
         self.categoricalFeatureEmbedInputs = []
         for numClasses, embedSize, name in categoricalFeatureEmbedSizes:
-            embedWeights = tf.Variable(tf.truncated_normal([numClasses, embedSize], stddev=0.1), name="embedWeights{}".format(name))
+            embedWeights = tf.Variable(weightInit([numClasses, embedSize], settings.weightMax), name="embedWeights{}".format(name))
             weightsToReg.append(embedWeights)
             embedInput = tf.placeholder(tf.int32, shape=[None], name="embedInput{}".format(name))
             embedOutput = tf.nn.embedding_lookup(embedWeights, embedInput, name="embedOutput{}".format(name))
-            firstLayerWeights = tf.Variable(tf.truncated_normal([embedSize, settings.hiddenLayerSizes[0]], stddev=0.1), name="firstLayerEmbedWeights{}".format(name))
+            firstLayerWeights = tf.Variable(weightInit([embedSize, settings.hiddenLayerSizes[0]], settings.weightMax), name="firstLayerEmbedWeights{}".format(name))
             h1 += tf.matmul(embedOutput, firstLayerWeights)
             self.categoricalFeatureEmbedInputs.append(embedInput)
         if not settings.batchNorm:
-            b1 = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[0]]), name="b1")
+            b1 = tf.Variable(tf.constant(settings.initialBias, shape=[settings.hiddenLayerSizes[0]]), name="b1")
             h1 += b1
 
         if settings.activation == 'relu':
@@ -253,10 +267,10 @@ class Graph:
 
         zdrops = [z1drop]
         for i in range(1, len(settings.hiddenLayerSizes)):
-            w = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], stddev=0.1), name="w{}".format(i+1))
+            w = tf.Variable(weightInit([settings.hiddenLayerSizes[i-1], settings.hiddenLayerSizes[i]], settings.weightMax), name="w{}".format(i+1))
             weightsToReg.append(w)
             if not settings.batchNorm:
-                b = tf.Variable(tf.constant(0.1, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
+                b = tf.Variable(tf.constant(settings.initialBias, shape=[settings.hiddenLayerSizes[i]]), name="b{}".format(i+1))
                 h = tf.matmul(zdrops[-1], w) + b
             else:
                 h = tf.matmul(zdrops[-1], w)
@@ -268,26 +282,26 @@ class Graph:
         if settings.splitExtraLayer > 0:
             houtputs = []
             for i in range(3):
-                wextra = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], stddev=0.1), name="wextra{}".format(i))
+                wextra = tf.Variable(weightInit([settings.hiddenLayerSizes[-1], settings.splitExtraLayer], settings.weightMax), name="wextra{}".format(i))
                 weightsToReg.append(wextra)
                 if not settings.batchNorm:
-                    bextra = tf.Variable(tf.constant(0.1, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
+                    bextra = tf.Variable(tf.constant(settings.initialBias, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
                     hextra = tf.matmul(zdrops[-1], wextra) + bextra
                 else:
                     hextra = tf.matmul(zdrops[-1], wextra)
                 zextra = activation(batchNorm(hextra, settings.batchNorm, isTraining))
                 tf.histogram_summary("actlast{}".format(i), zextra)
 
-                woutput = tf.Variable(tf.truncated_normal([settings.splitExtraLayer, 1], stddev=0.1), name="woutput{}".format(i))
+                woutput = tf.Variable(weightInit([settings.splitExtraLayer, 1], settings.weightMax), name="woutput{}".format(i))
                 weightsToReg.append(woutput)
-                boutput = tf.Variable(tf.constant(outputAverages[i] if settings.outputBias else 0.1, shape=[1]), name="boutput{}".format(i))
+                boutput = tf.Variable(tf.constant(outputAverages[i] if settings.outputBias else settings.initialBias, shape=[1]), name="boutput{}".format(i))
                 houtputs.append(tf.matmul(zextra, woutput) + boutput)
 
             self.houtput = tf.concat(1, houtputs)
         else:
-            woutput = tf.Variable(tf.truncated_normal([settings.hiddenLayerSizes[-1], 3], stddev=0.1), name="w3")
+            woutput = tf.Variable(weightInit([settings.hiddenLayerSizes[-1], 3], settings.weightMax), name="w3")
             weightsToReg.append(woutput)
-            boutput = tf.Variable(tf.constant(outputAverages if settings.outputBias else 0.1, shape=[3]), name="b3")
+            boutput = tf.Variable(tf.constant(outputAverages if settings.outputBias else settings.initialBias, shape=[3]), name="b3")
             self.houtput = tf.matmul(zdrops[-1], woutput) + boutput
 
         self.mse = tf.reduce_mean(tf.reduce_sum(tf.mul(tf.square(self.houtput - self.outputs), self.outputsPresent), 1), name='mse')
@@ -504,6 +518,8 @@ def main():
     parser.add_argument('--random', action='store_true', default=False)
     parser.add_argument('--stopAfterNoImprovement', type=float, default=600, help='')
     parser.add_argument('--outputBias', action='store_true', default=False)
+    parser.add_argument('--initialBias', type=float, default=0.1)
+    parser.add_argument('--weightMax', type=float, default=-0.1)
     for col in CATEGORICAL_COLS:
         if col == 'COMBINED_ID':
             parser.add_argument('--{}'.format(col), type=int, default=0, help='')
