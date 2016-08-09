@@ -256,7 +256,7 @@ class Graph:
                 weightsToReg.append(wextra)
                 if not settings.batchNorm:
                     bextra = tf.Variable(tf.constant(0.1, shape=[settings.splitExtraLayer]), name="bextra{}".format(i))
-                    hextra = tf.matmul(zdrops[-1], wextra) + bExtra
+                    hextra = tf.matmul(zdrops[-1], wextra) + bextra
                 else:
                     hextra = tf.matmul(zdrops[-1], wextra)
                 zextra = activation(batchNorm(hextra, settings.batchNorm, isTraining))
