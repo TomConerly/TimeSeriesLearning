@@ -124,7 +124,7 @@ class Settings:
             useCombined = random.choice([False, True])
             if useCombined:
                 setattr(self, 'STUDYID', 0)
-                setattr(self, 'COUNTRYID', 0)
+                setattr(self, 'COUNTRY', 0)
                 setattr(self, 'SITEID', 0)
                 setattr(self, 'COMBINED_ID', random.choice([-1, random.randint(10, 30)]))
             else:
