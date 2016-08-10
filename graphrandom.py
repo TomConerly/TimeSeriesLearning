@@ -5,7 +5,7 @@ import numpy as np
 import os
 import pickle
 
-prefix = 'goo'
+prefix = 'goc'
 
 StepScore = collections.namedtuple('StepScore', ['trainMAD', 'trainMSE', 'validMAD', 'validMSE', 'step'])
 
@@ -101,7 +101,7 @@ class Settings:
             cat += '{}:{},'.format(name.lower(), getattr(self, col))
         return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {}, l1: {}, lt: {}, train: {}, valOff: {}, l1r: {}, l2r: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg)
 
-prefix = 'goa'
+prefix = 'goc'
 filterBelow = .05
 
 runs = {}
@@ -122,7 +122,6 @@ for i in range(300):
 comb.sort()
 for (v, s) in comb[:20]:
     print('{:.6f} {}'.format(v, s))
-    #print('{:.6f} l0: {:.6f} l1: {:.6f} lt: {} CN: {:.6f}'.format(v, s.learningRate0, s.learningRate1, s.learningRatet, s.clipNorm))
 
 def graph(name):
     x = [getattr(s, name) for (v, s) in comb if v < filterBelow]
@@ -136,8 +135,13 @@ def hist(name, values):
     cols = math.ceil(len(values) / rows)
     for i in range(len(values)):
         plt.subplot(rows, cols, i+1)
-        filtered = [v for (v, s) in comb if getattr(s, name) == values[i] and v < filterBelow]
+        if values[i] is not None:
+            filtered = [v for (v, s) in comb if getattr(s, name) == values[i] and v < filterBelow]
+        else:
+            filtered = [v for (v, s) in comb if getattr(s, name) not in values and v < filterBelow]
         plt.hist(filtered, 50)
+        if len(filtered) == 0:
+            continue
         plt.title('{}: {:.5f} {:.5f}'.format(values[i], min(filtered), sum(filtered)/len(filtered)))
         print('Best {}: {:5f} {:5f}'.format(values[i], min(filtered), sum(filtered)/len(filtered)))
     plt.suptitle(name)
@@ -168,10 +172,12 @@ def numHiddenNodes():
 
 def numHiddenLayers():
     l = [(len(s.hiddenLayerSizes), v) for (v, s) in comb if v < filterBelow]
-    for i in range(1, 7):
-        plt.subplot(2, 3, i)
+    for i in range(2, 9):
+        plt.subplot(3, 3, i)
         filtered = [v for (le, v) in l if le == i and v < filterBelow]
         plt.hist(filtered, 50)
+        if len(filtered) == 0:
+            continue
         plt.title('{}: {:.5f} {:.5f}'.format(i, min(filtered), sum(filtered)/len(filtered)))
     plt.suptitle('Num hidden layers')
     plt.show()
@@ -204,9 +210,18 @@ def showReg():
     histOnOff('l2reg', 0)
     graph('l2reg')
 
-hist('batchSize', [64, 96, 128, 192, 256, 384, 512])
-#histOnOff('clipNorm', 0)
-#graph('clipNorm')
+hist('outputBias', [False, True])
+graph('initialBias')
+graph('weightMax')
+hist('COMBINED_NOMINAL', [-1, 0, None])
+hist('COMBINED_ID', [-1, 0, None])
+
+showBinary()
+showReg()
+
+hist('batchSize', [96, 128, 192, 256, 384, 512])
+histOnOff('clipNorm', 0)
+graph('clipNorm')
 
 numHiddenNodes()
 numHiddenLayers()
@@ -216,3 +231,12 @@ avgHiddenLayer()
 graph('SUBJID')
 graph('learningRate0')
 graph('learningRate1')
+
+histOnOff('COVAR_NOMINAL_1', -1)
+histOnOff('COVAR_NOMINAL_2', -1)
+histOnOff('COVAR_NOMINAL_3', -1)
+histOnOff('COVAR_NOMINAL_4', -1)
+histOnOff('COVAR_NOMINAL_5', -1)
+histOnOff('COVAR_NOMINAL_6', -1)
+histOnOff('COVAR_NOMINAL_7', -1)
+histOnOff('COVAR_NOMINAL_8', -1)
