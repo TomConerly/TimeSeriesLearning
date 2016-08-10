@@ -7,7 +7,7 @@ import pickle
 Args = collections.namedtuple('Args', ['runId', 'trainingTime', 'validateInterval', 'stopAfterNoImprovement'])
 
 for i in range(300):
-    args = Args(runId=i, trainingTime=60*60, validateInterval=120, stopAfterNoImprovement=600)
+    args = Args(runId=i, trainingTime=2*60*60, validateInterval=120, stopAfterNoImprovement=1200)
     settings = nn.Settings(True, args)
 
     awsClient = aws.RealAWSClient()

@@ -97,58 +97,44 @@ class Settings:
             self.trainingPercent = 0.8
             self.validationOffset = 0.8
 
-            numHiddenLayers = random.randint(2, 8)
-            self.hiddenLayerSizes = [random.choice([30, 40, 60, 80, 100, 140, 180, 220, 260]) for i in range(numHiddenLayers)]
-            self.batchSize = random.choice([96, 128, 192, 256, 384])
+            numHiddenLayers = random.randint(4, 8)
+            self.hiddenLayerSizes = [random.choice([200, 400, 800, 1200, 1600]) for i in range(numHiddenLayers)]
+            self.batchSize = 192
             self.dropout = 1
             self.normalizeInput = True
             self.ordinalNan = random.choice([False, True])
             self.learningRate0 = random.expovariate(1/.002)
             self.learningRate1 = random.expovariate(1/.0001)
             self.learningRatet = random.choice([5e4, 1e5, 2e5, 4e5, 8e5])
-            self.l1reg = random.choice([0, 0, 0, random.expovariate(1/0.05)])
-            self.l2reg = random.choice([0, random.expovariate(1)])
+            self.l1reg = 0
+            self.l2reg = random.expovariate(1)
             self.activation = 'relu'
             self.reshuffle = True
-            self.nanToMean = random.random() < 0.9
+            self.nanToMean = True
             self.splitExtraLayer = False
-            self.batchNorm = random.random() < 0.1
-            self.clipNorm = random.choice([0, random.expovariate(1/.05), random.expovariate(1/.05), random.expovariate(1/.05)])
+            self.batchNorm = False
+            self.clipNorm = random.expovariate(1/.05)
             self.outputBias = random.choice([False, True])
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':
-                    setattr(self, col, random.randint(15, 35))
+                    setattr(self, col, random.randint(30, 80))
                 else:
-                    setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
-            useCombined = random.choice([False, True])
-            if useCombined:
-                setattr(self, 'STUDYID', 0)
-                setattr(self, 'COUNTRY', 0)
-                setattr(self, 'SITEID', 0)
-                setattr(self, 'COMBINED_ID', random.choice([-1, random.randint(10, 30)]))
-            else:
-                setattr(self, 'COMBINED_ID', 0)
+                    setattr(self, col, -1)
+            setattr(self, 'COMBINED_ID', 0)
 
-            useCombinedNominal = random.choice([False, True])
-            if useCombinedNominal:
-                setattr(self, 'COMBINED_NOMINAL', random.choice([-1, random.randint(10, 30)]))
-                setattr(self, 'COVAR_NOMINAL_1', 0)
-                setattr(self, 'COVAR_NOMINAL_2', 0)
-                setattr(self, 'COVAR_NOMINAL_3', 0)
-                setattr(self, 'COVAR_NOMINAL_4', 0)
-                setattr(self, 'COVAR_NOMINAL_5', 0)
-                setattr(self, 'COVAR_NOMINAL_6', 0)
-                setattr(self, 'COVAR_NOMINAL_7', 0)
-                setattr(self, 'COVAR_NOMINAL_8', 0)
-            else:
-                setattr(self, 'COMBINED_NOMINAL', 0)
+            setattr(self, 'COMBINED_NOMINAL', random.choice([-1, random.randint(10, 30)]))
+            setattr(self, 'COVAR_NOMINAL_1', 0)
+            setattr(self, 'COVAR_NOMINAL_2', 0)
+            setattr(self, 'COVAR_NOMINAL_3', 0)
+            setattr(self, 'COVAR_NOMINAL_4', 0)
+            setattr(self, 'COVAR_NOMINAL_5', 0)
+            setattr(self, 'COVAR_NOMINAL_6', 0)
+            setattr(self, 'COVAR_NOMINAL_7', 0)
+            setattr(self, 'COVAR_NOMINAL_8', 0)
 
             self.initialBias = random.expovariate(1/0.1)
-            if random.choice([False, True]):
-                self.weightMax = -random.expovariate(1/0.1)
-            else:
-                self.weightMax = random.expovariate(1/0.1)
+            self.weightMax = -random.expovariate(1/0.1)
 
         else:
             self.runId = args.runId
