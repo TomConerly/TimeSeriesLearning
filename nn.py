@@ -178,6 +178,20 @@ class Settings:
             for col in CATEGORICAL_COLS:
                 setattr(self, col, getattr(args, col))
 
+    def __str__(self):
+        cat = ''
+        for col in CATEGORICAL_COLS:
+            name = col
+            if col.startswith('COVAR_NOMINAL_'):
+                name = 'cvn' + col[-1]
+            cat += '{}:{},'.format(name.lower(), getattr(self, col))
+        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN:{:.5f}, IB: {:.5f}, WM: {:.5f}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {:.5f}, l1: {:.5f}, lt: {}, train: {}, valOff: {}, l1r: {:.5f}, l2r: {:.5f}, OB:{}, N2M: {}, SEL: {} reshuffle: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 
+            'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation,
+            self.batchNorm, self.clipNorm, self.initialBias, self.weightMax, self.batchSize,
+            self.trainingTime, self.dropout, self.learningRate0, self.learningRate1,
+            self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg,
+            self.outputBias, self.nanToMean, self.splitExtraLayer, self.reshuffle)
+
     def compatible(self, s):
         if self.hiddenLayerSizes != s.hiddenLayerSizes:
             logging.info('Hidden layer sizes incompatible')
@@ -199,15 +213,6 @@ class Settings:
                 logging.info('Categorical column {} incompatible'.format(col))
                 return False
         return True
-
-    def __str__(self):
-        cat = ''
-        for col in CATEGORICAL_COLS:
-            name = col
-            if col.startswith('COVAR_NOMINAL_'):
-                name = 'cvn' + col[-1]
-            cat += '{}:{},'.format(name.lower(), getattr(self, col))
-        return 'Run: {}, Res: {}. Graph[Hid: {}, Norm: {}, OrdNan: {}, Cat: {}, Act: {}, BN: {}, CN: {:.5f}, IB: {:.5f}, WM: {:.5f}]<br> Training[Batch: {}, Time: {}, Drop: {}, l0: {:.5f}, l1: {:.5f}, lt: {}, train: {}, valOff: {}, l1r: {:.5f}, l2r: {:.5f}, OB: {}]'.format(self.runId, self.resumeRun, self.hiddenLayerSizes, 'T' if self.normalizeInput else 'F', 'T' if self.ordinalNan else 'F', cat, self.activation, self.batchNorm, self.clipNorm, self.initialBias, self.weightMax, self.batchSize, self.trainingTime, self.dropout, self.learningRate0, self.learningRate1, self.learningRatet, self.trainingPercent, self.validationOffset, self.l1reg, self.l2reg, self.outputBias)
 
 def batchNorm(inputTensor, useBatchNorm, isTraining, decay=0.99):
     if not useBatchNorm:
