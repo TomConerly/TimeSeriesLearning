@@ -99,26 +99,26 @@ class Settings:
 
             numHiddenLayers = random.randint(2, 8)
             self.hiddenLayerSizes = [random.choice([30, 40, 60, 80, 100, 140, 180, 220, 260]) for i in range(numHiddenLayers)]
-            self.batchSize = random.choice([96, 128, 192, 256, 384, 512])
+            self.batchSize = random.choice([96, 128, 192, 256, 384])
             self.dropout = 1
-            self.normalizeInput = random.random() < 0.9
+            self.normalizeInput = True
             self.ordinalNan = random.choice([False, True])
-            self.learningRate0 = random.expovariate(1/.001)
+            self.learningRate0 = random.expovariate(1/.002)
             self.learningRate1 = random.expovariate(1/.0001)
-            self.learningRatet = random.choice([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7])
+            self.learningRatet = random.choice([5e4, 1e5, 2e5, 4e5, 8e5])
             self.l1reg = random.choice([0, 0, 0, random.expovariate(1/0.05)])
             self.l2reg = random.choice([0, random.expovariate(1)])
             self.activation = 'relu'
-            self.reshuffle = random.random() < 0.9
+            self.reshuffle = True
             self.nanToMean = random.random() < 0.9
-            self.splitExtraLayer = random.random() < 0.1
+            self.splitExtraLayer = False
             self.batchNorm = random.random() < 0.1
             self.clipNorm = random.choice([0, random.expovariate(1/.05), random.expovariate(1/.05), random.expovariate(1/.05)])
             self.outputBias = random.choice([False, True])
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':
-                    setattr(self, col, random.randint(5, 35))
+                    setattr(self, col, random.randint(15, 35))
                 else:
                     setattr(self, col, random.choice([-1, -1, -1, random.randint(5, 25)]))
             useCombined = random.choice([False, True])
