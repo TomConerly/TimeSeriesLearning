@@ -484,6 +484,17 @@ def nn(settings, callback=None):
                 bestMSE = min(bestMSE, validMSE)
                 bestMAD = min(bestMAD, validMAD)
                 lastValidateTime = time.time()
+
+                if step > 50000 and bestMAD > .01:
+                    logging.info('Missed 50k checkpoint')
+                    break
+                if step > 80000 and bestMAD > .009:
+                    logging.info('Missed 80k checkpoint')
+                    break
+                if step > 120000 and bestMAD > .086:
+                    logging.info('Missed 120k checkpoint')
+                    break
+
             step += 1
         return history
 
