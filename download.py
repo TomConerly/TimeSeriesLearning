@@ -21,9 +21,10 @@ for r in [50, 52, 53, 54, 55]:
     c.downloadFile(aws.S3BUCKET, 'tfmodels/run{}best.meta'.format(r), os.path.join('tfmodels', 'run{}.meta'.format(r)))
 '''
 
-objects = c.listObjects(aws.S3BUCKET, 'gob')
+prefix = 'goe'
+objects = c.listObjects(aws.S3BUCKET, prefix)
 for obj in objects:
     key = obj['Key']
-    path = os.path.join('gob', key)
+    path = os.path.join(prefix, key)
     if not os.path.exists(path):
         c.downloadFile(aws.S3BUCKET, key, path)
