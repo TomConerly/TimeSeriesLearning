@@ -98,32 +98,32 @@ class Settings:
             self.validationOffset = 0.8
 
             numHiddenLayers = random.randint(4, 8)
-            self.hiddenLayerSizes = [random.choice([200, 400, 800, 1200, 1600]) for i in range(numHiddenLayers)]
+            self.hiddenLayerSizes = [random.choice([200, 400, 600, 800]) for i in range(numHiddenLayers)]
             self.batchSize = 192
             self.dropout = 1
             self.normalizeInput = True
             self.ordinalNan = random.choice([False, True])
             self.learningRate0 = random.expovariate(1/.002)
             self.learningRate1 = random.expovariate(1/.0001)
-            self.learningRatet = random.choice([5e4, 1e5, 2e5, 4e5, 8e5])
+            self.learningRatet = random.choice([5e4, 1e5, 2e5])
             self.l1reg = 0
-            self.l2reg = random.expovariate(1)
+            self.l2reg = random.uniform(0, 0.6)
             self.activation = 'relu'
             self.reshuffle = True
             self.nanToMean = True
             self.splitExtraLayer = False
             self.batchNorm = False
             self.clipNorm = random.expovariate(1/.05)
-            self.outputBias = random.choice([False, True])
+            self.outputBias = True
 
             for col in CATEGORICAL_COLS:
                 if col == 'SUBJID':
-                    setattr(self, col, random.randint(30, 80))
+                    setattr(self, col, random.randint(40, 70))
                 else:
                     setattr(self, col, -1)
             setattr(self, 'COMBINED_ID', 0)
 
-            setattr(self, 'COMBINED_NOMINAL', random.choice([-1, random.randint(10, 30)]))
+            setattr(self, 'COMBINED_NOMINAL', random.randint(10, 30))
             setattr(self, 'COVAR_NOMINAL_1', 0)
             setattr(self, 'COVAR_NOMINAL_2', 0)
             setattr(self, 'COVAR_NOMINAL_3', 0)
@@ -133,8 +133,8 @@ class Settings:
             setattr(self, 'COVAR_NOMINAL_7', 0)
             setattr(self, 'COVAR_NOMINAL_8', 0)
 
-            self.initialBias = random.expovariate(1/0.1)
-            self.weightMax = -random.expovariate(1/0.1)
+            self.initialBias = random.choice([.025, 0.035, 0.045, 0.055, 0.065])
+            self.weightMax = random.choice([-.08, -.06, -.04, -.02])
 
         else:
             self.runId = args.runId
